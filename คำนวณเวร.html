@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>คำนวณเวร</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3f1fb;--card:#fff;--ink:#1d1b3a;--mute:#7a7794;--line:#e6e3f4;--brand:#3b2fd8;--brand-ink:#fff;--m:#f5b83d;--a:#ee8a4b;--n:#3b2fd8;--ot:#17a589;--off:#9a97b3;--soft:#ece9fb;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#13122a;--card:#1e1c3d;--ink:#eeedfb;--mute:#9a97c0;--line:#2e2b57;--brand:#7b70ff;--brand-ink:#12102b;--soft:#2a2750}}
+:root[data-theme="dark"]{--bg:#13122a;--card:#1e1c3d;--ink:#eeedfb;--mute:#9a97c0;--line:#2e2b57;--brand:#7b70ff;--brand-ink:#12102b;--soft:#2a2750}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans Thai",system-ui,sans-serif;font-size:15px}
+main{max-width:480px;margin:0 auto;padding:14px 14px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.nav b{font-size:18px}
+button{font:inherit;color:inherit;cursor:pointer}
+.ib{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--card)}
+.total{font-size:40px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+.total small{font-size:16px;font-weight:500;color:var(--mute);margin-left:4px}
+.lbl{color:var(--mute);font-size:13px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.bar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--soft);margin:12px 0 4px}
+.bar i{display:block}
+.tabs{display:flex;background:var(--soft);border-radius:14px;padding:4px;margin-bottom:12px}
+.tabs button{flex:1;border:0;background:none;padding:9px;border-radius:11px;font-weight:500;color:var(--mute)}
+.tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dow{text-align:center;color:var(--mute);font-size:12px;padding-bottom:4px}
+.day{aspect-ratio:1/1.1;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:3px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px}
+.day.today{border-color:var(--brand);border-width:2px}
+.day.empty{visibility:hidden}
+.tags{display:flex;flex-wrap:wrap;gap:2px;justify-content:center}
+.tg{font-size:10px;line-height:1;padding:2px 3px;border-radius:4px;color:#fff;font-weight:700}
+.tg.m{background:var(--m);color:#3b2a00}.tg.a{background:var(--a)}.tg.n{background:var(--n);color:#fff}.tg.o{background:var(--ot)}.tg.x{background:var(--off)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--mute)}
+.sheet{position:fixed;inset:0;background:rgba(10,8,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.sheet.show{display:flex}
+.panel{background:var(--card);width:100%;max-width:480px;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.chip{padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--bg);text-align:left;font-weight:500}
+.chip.on{border-color:var(--brand);background:var(--soft)}
+.chip small{display:block;color:var(--mute);font-weight:400}
+.primary{width:100%;border:0;background:var(--brand);color:var(--brand-ink);padding:14px;border-radius:14px;font-weight:700}
+.field{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
+input[type=number],input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:110px;text-align:right}
+input[type=text]{width:100%;text-align:left}
+h3{margin:0 0 6px;font-size:16px}
+.sw{position:relative;width:48px;height:28px;border-radius:14px;background:var(--line);border:0;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on{background:var(--brand)}.sw.on::after{left:23px}
+.del{border:0;background:none;color:var(--mute);font-size:20px;padding:0 6px}
+.add{display:flex;gap:8px;margin-top:10px}.add input[type=number]{width:100px}
+.add button{border:0;background:var(--brand);color:var(--brand-ink);border-radius:10px;padding:0 14px;font-weight:700}
+.hide{display:none}
+textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0 12px;resize:vertical}
+select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px}
+input[type=color]{width:42px;height:40px;padding:2px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <div class="nav">
+    <button class="ib" id="prev" aria-label="เดือนก่อน">‹</button>
+    <b id="mt"></b>
+    <button class="ib" id="next" aria-label="เดือนถัดไป">›</button>
+  </div>
+
+  <section class="card">
+    <div class="lbl">รายได้เดือนนี้</div>
+    <div class="total"><span id="tot">0</span><small>บาท</small></div>
+    <div class="bar" id="bar"></div>
+    <div id="sum"></div>
+  </section>
+
+  <div class="tabs">
+    <button class="on" data-t="cal">ปฏิทินเวร</button>
+    <button data-t="line">LINE</button>
+    <button data-t="set">ตั้งค่า</button>
+  </div>
+
+  <section id="cal" class="card">
+    <div class="cal" id="grid"></div>
+    <div class="legend" id="legend"></div>
+    <p class="lbl" style="margin:12px 0 0">แตะวันที่เพื่อลงเวร เลือกได้หลายเวรในวันเดียว</p>
+  </section>
+
+  <section id="set" class="hide">
+    <div class="card">
+      <h3>ประเภทเวรและค่าเวร</h3>
+      <div class="field"><div>แยกราคาตามเวร<div class="lbl">ปิดเพื่อใช้ราคาเดียวทุกเวร</div></div><button class="sw" id="split" aria-label="แยกราคาตามเวร"></button></div>
+      <div id="rates"></div>
+      <h3 style="margin-top:14px">เพิ่มประเภทเวร</h3>
+      <div class="add" style="flex-wrap:wrap"><input type="text" id="tn" placeholder="ชื่อ เช่น เวรควบ" style="flex:1;min-width:120px"><input type="text" id="ts" placeholder="ตัวย่อ" style="width:70px"><select id="tk"><option value="s">เวรปกติ</option><option value="o">OT</option><option value="x">วันหยุด</option></select><input type="number" id="tr" inputmode="numeric" placeholder="บาท"><input type="color" id="tc" value="#e0457b" aria-label="สี"><button id="tadd">เพิ่ม</button></div>
+    </div>
+    <div class="card">
+      <h3>รายได้อื่น (ต่อเดือน)</h3>
+      <div id="other"></div>
+      <div class="add"><input type="text" id="on" placeholder="ชื่อรายการ"><input type="number" id="oa" placeholder="บาท" inputmode="numeric"><button id="oadd">เพิ่ม</button></div>
+    </div>
+    <button class="primary" id="reset" style="background:var(--soft);color:var(--ink)">ล้างเวรของเดือนนี้</button>
+  </section>
+<section id="line" class="hide">
+    <div class="card">
+      <h3>ส่งเข้า LINE</h3>
+      <p class="lbl" style="margin:0 0 12px">กดแล้วจะเปิด LINE ให้เลือกแชทหรือกลุ่มที่จะส่ง</p>
+      <button class="primary" id="shareSum">ส่งสรุปรายได้เข้า LINE</button>
+      <button class="primary" id="shareSch" style="margin-top:8px;background:var(--soft);color:var(--ink)">ส่งตารางเวรเข้า LINE</button>
+    </div>
+    <div class="card">
+      <h3>นำเข้าเวรจากข้อความ LINE</h3>
+      <p class="lbl" style="margin:0">คัดลอกข้อความตารางเวรมาวาง บรรทัดละวัน เช่น 16 เช้า / 17 บ่าย ดึก / 18 OT เช้า / 19 OFF ใช้ชื่อหรือตัวย่อที่ตั้งไว้ได้</p>
+      <textarea id="imp" rows="7" placeholder="16 เช้า&#10;17 บ่าย&#10;18 ดึก&#10;19 OFF"></textarea>
+      <button class="primary" id="impBtn">นำเข้าตารางเวร</button>
+      <p class="lbl" id="impMsg"></p>
+    </div>
+  </section>
+</main>
+
+<div class="sheet" id="sheet"><div class="panel">
+  <h3 id="st"></h3><div class="lbl" id="ss"></div>
+  <div class="chips" id="chips"></div>
+  <button class="primary" id="done">เสร็จ</button>
+</div></div>
+
+<script>
+const MN=["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const T0=()=>[["m","เวรเช้า","08:00–16:00","ช",800,"#f5b83d","s"],["a","เวรบ่าย","16:00–00:00","บ",900,"#ee8a4b","s"],["n","เวรดึก","00:00–08:00","ด",1000,"#3b2fd8","s"],["om","OT เช้า","","OT",700,"#17a589","o"],["oa","OT บ่าย","","OT",900,"#17a589","o"],["on","OT ดึก","","OT",800,"#17a589","o"],["x","OFF","วันหยุด","OFF",0,"#9a97b3","x"]].map(a=>({id:a[0],name:a[1],time:a[2],short:a[3],rate:a[4],color:a[5],kind:a[6]}));
+const DEF={split:true,types:T0(),flat:{s:900,o:800},other:[{id:1,name:"เงินเดือน",amt:15000},{id:2,name:"ค่าประกอบวิชาชีพ",amt:900},{id:3,name:"ค่าครองชีพ",amt:90}],days:{}};
+let S,old=null;try{old=JSON.parse(localStorage.getItem("shiftcalc")||"null")}catch(e){}
+S=Object.assign(JSON.parse(JSON.stringify(DEF)),old||{});
+if(old&&!old.types&&old.rates)S.types.forEach(t=>{if(old.rates[t.id]!=null)t.rate=old.rates[t.id]});
+const save=()=>{try{localStorage.setItem("shiftcalc",JSON.stringify(S))}catch(e){}};
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString("th-TH");
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const tp=id=>S.types.find(t=>t.id===id);
+const alias=t=>t.name.replace(/^เวร/,"")||t.name;
+const ink=h=>{const n=parseInt(h.slice(1),16);return(((n>>16)&255)*.3+((n>>8)&255)*.59+(n&255)*.11)>150?"#2a2100":"#fff"};
+let now=new Date(),Y=now.getFullYear(),M=now.getMonth(),cur=null;
+const pad=n=>String(n).padStart(2,"0");
+const key=d=>`${Y}-${pad(M+1)}-${pad(d)}`;
+const dimOf=()=>new Date(Y,M+1,0).getDate();
+const rate=t=>t.kind==="x"?0:S.split?t.rate:(t.kind==="o"?S.flat.o:S.flat.s);
+const tag=t=>`<span class="tg" style="background:${t.color};color:${ink(t.color)}">${esc(t.short)}</span>`;
+
+function calc(){
+  let ns=0,no=0,nx=0,ms=0,mo=0;
+  for(let d=1;d<=dimOf();d++)(S.days[key(d)]||[]).forEach(id=>{
+    const t=tp(id);if(!t)return;
+    if(t.kind==="x")nx++;else if(t.kind==="o"){no++;mo+=+rate(t)||0}else{ns++;ms+=+rate(t)||0}
+  });
+  const oth=S.other.reduce((s,o)=>s+(+o.amt||0),0);
+  return{ns,no,nx,ms,mo,oth,total:ms+mo+oth};
+}
+function render(){
+  $("mt").textContent=`${MN[M]} ${Y+543}`;
+  const c=calc(),t=c.total||1;
+  $("tot").textContent=fmt(c.total);
+  $("bar").innerHTML=`<i style="width:${c.oth/t*100}%;background:var(--off)"></i><i style="width:${c.ms/t*100}%;background:var(--brand)"></i><i style="width:${c.mo/t*100}%;background:var(--ot)"></i>`;
+  $("sum").innerHTML=
+   `<div class="row"><span>เวรปกติ <span class="lbl">${c.ns} เวร</span></span><b>${fmt(c.ms)}</b></div>`+
+   `<div class="row"><span>OT <span class="lbl">${c.no} เวร</span></span><b>${fmt(c.mo)}</b></div>`+
+   `<div class="row"><span>รายได้อื่น</span><b>${fmt(c.oth)}</b></div>`+
+   `<div class="row"><span class="lbl">วันหยุด (OFF)</span><span class="lbl">${c.nx} วัน</span></div>`;
+  const first=new Date(Y,M,1).getDay();
+  let h=["อา","จ","อ","พ","พฤ","ศ","ส"].map(d=>`<div class="dow">${d}</div>`).join("");
+  for(let i=0;i<first;i++)h+=`<div class="day empty"></div>`;
+  for(let d=1;d<=dimOf();d++){
+    const tg=(S.days[key(d)]||[]).map(tp).filter(Boolean).map(tag).join("");
+    const td=d===now.getDate()&&M===now.getMonth()&&Y===now.getFullYear();
+    h+=`<button class="day${td?" today":""}" data-d="${d}"><span>${d}</span><span class="tags">${tg}</span></button>`;
+  }
+  $("grid").innerHTML=h;
+  $("legend").innerHTML=S.types.map(t=>`<span>${tag(t)} ${esc(t.name)}</span>`).join("");
+  $("split").classList.toggle("on",S.split);
+  const flat=S.split?"":`<div class="field"><span>ทุกเวร</span><span><input type="number" inputmode="numeric" data-f="s" value="${S.flat.s}"> บาท</span></div><div class="field"><span>OT ทุกเวร</span><span><input type="number" inputmode="numeric" data-f="o" value="${S.flat.o}"> บาท</span></div>`;
+  $("rates").innerHTML=flat+S.types.map(t=>`<div class="field"><input type="text" data-n="${t.id}" value="${esc(t.name)}" style="flex:1;min-width:0"><span>${S.split&&t.kind!=="x"?`<input type="number" inputmode="numeric" data-r="${t.id}" value="${t.rate}" style="width:84px"> `:""}<button class="del" data-td="${t.id}" aria-label="ลบ">×</button></span></div>`).join("");
+  $("other").innerHTML=S.other.length?S.other.map(o=>`<div class="field"><span>${esc(o.name)}</span><span>${fmt(o.amt)} <button class="del" data-del="${o.id}" aria-label="ลบ">×</button></span></div>`).join(""):`<p class="lbl">ยังไม่มีรายการ เพิ่มเงินเดือนหรือค่าตอบแทนอื่นได้ด้านล่าง</p>`;
+}
+function openDay(d){
+  cur=d;const dt=new Date(Y,M,d);
+  $("st").textContent=`${d} ${MN[M]} ${Y+543}`;
+  $("ss").textContent=["วันอาทิตย์","วันจันทร์","วันอังคาร","วันพุธ","วันพฤหัสบดี","วันศุกร์","วันเสาร์"][dt.getDay()];
+  drawChips();$("sheet").classList.add("show");
+}
+function drawChips(){
+  const on=S.days[key(cur)]||[];
+  $("chips").innerHTML=S.types.map(t=>`<button class="chip${on.includes(t.id)?" on":""}" data-k="${t.id}">${esc(t.name)}<small>${[t.time,t.kind!=="x"?fmt(rate(t))+" บาท":""].filter(Boolean).join(" · ")}</small></button>`).join("");
+}
+$("chips").onclick=e=>{
+  const b=e.target.closest(".chip");if(!b)return;
+  const k=b.dataset.k,kk=key(cur);let a=S.days[kk]||[];
+  a=a.includes(k)?a.filter(x=>x!==k):(tp(k).kind==="x"?[k]:[...a.filter(x=>tp(x)&&tp(x).kind!=="x"),k]);
+  if(a.length)S.days[kk]=a;else delete S.days[kk];
+  save();drawChips();render();
+};
+$("done").onclick=()=>$("sheet").classList.remove("show");
+$("sheet").onclick=e=>{if(e.target.id==="sheet")$("sheet").classList.remove("show")};
+$("grid").onclick=e=>{const b=e.target.closest(".day[data-d]");if(b)openDay(+b.dataset.d)};
+$("prev").onclick=()=>{M--;if(M<0){M=11;Y--}render()};
+$("next").onclick=()=>{M++;if(M>11){M=0;Y++}render()};
+document.querySelector(".tabs").onclick=e=>{
+  const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
+  ["cal","line","set"].forEach(id=>$(id).classList.toggle("hide",id!==b.dataset.t));
+};
+$("split").onclick=()=>{S.split=!S.split;save();render()};
+$("rates").oninput=e=>{
+  const i=e.target.dataset,v=Math.max(0,+e.target.value||0);
+  if(i.n)tp(i.n).name=e.target.value;else if(i.r)tp(i.r).rate=v;else if(i.f)S.flat[i.f]=v;else return;
+  save();const c=calc();$("tot").textContent=fmt(c.total);
+};
+$("rates").onchange=render;
+$("rates").onclick=e=>{
+  const b=e.target.closest("[data-td]");if(!b)return;const t=tp(b.dataset.td);
+  if(!confirm(`ลบประเภท "${t.name}"? เวรนี้จะหายจากตารางทุกเดือน`))return;
+  S.types=S.types.filter(x=>x!==t);
+  Object.keys(S.days).forEach(k=>{S.days[k]=S.days[k].filter(id=>id!==t.id);if(!S.days[k].length)delete S.days[k]});
+  save();render();
+};
+$("tadd").onclick=()=>{
+  const name=$("tn").value.trim();if(!name)return;
+  const kind=$("tk").value;
+  S.types.push({id:"c"+Date.now(),name,time:"",short:$("ts").value.trim()||(kind==="o"?"OT":name.replace(/^เวร/,"").slice(0,2)),rate:kind==="x"?0:Math.max(0,+$("tr").value||0),color:$("tc").value,kind});
+  $("tn").value="";$("ts").value="";$("tr").value="";save();render();
+};
+$("oadd").onclick=()=>{
+  const n=$("on").value.trim(),a=+$("oa").value;
+  if(!n||!a)return;S.other.push({id:Date.now(),name:n,amt:a});$("on").value="";$("oa").value="";save();render();
+};
+$("other").onclick=e=>{const b=e.target.closest("[data-del]");if(!b)return;S.other=S.other.filter(o=>o.id!=b.dataset.del);save();render()};
+$("reset").onclick=()=>{
+  if(!confirm(`ล้างเวรทั้งหมดของ ${MN[M]} ${Y+543}?`))return;
+  const p=`${Y}-${pad(M+1)}-`;Object.keys(S.days).forEach(k=>{if(k.startsWith(p))delete S.days[k]});save();render();
+};
+// ---- LINE ----
+function toLine(text){
+  const url="https://line.me/R/msg/text/?"+encodeURIComponent(text);
+  const w=window.open(url,"_blank");if(!w)location.href=url;
+}
+$("shareSum").onclick=()=>{
+  const c=calc();
+  toLine(`สรุปรายได้ ${MN[M]} ${Y+543}\nเวรปกติ ${c.ns} เวร: ${fmt(c.ms)} บาท\nOT ${c.no} เวร: ${fmt(c.mo)} บาท\nรายได้อื่น: ${fmt(c.oth)} บาท\nรวม ${fmt(c.total)} บาท`);
+};
+$("shareSch").onclick=()=>{
+  const L=[];for(let d=1;d<=dimOf();d++){const a=(S.days[key(d)]||[]).map(tp).filter(Boolean);if(a.length)L.push(d+" "+a.map(alias).join(" "))}
+  toLine(`ตารางเวร ${MN[M]} ${Y+543}\n`+(L.join("\n")||"(ยังไม่มีเวร)"));
+};
+function parse(txt){
+  const names=[];S.types.forEach(t=>{[t.name,alias(t)].forEach(n=>names.push([n.toLowerCase(),t.id]))});
+  names.sort((a,b)=>b[0].length-a[0].length);
+  const out={};
+  txt.split("\n").forEach(line=>{
+    const m=line.trim().match(/^(?:วันที่\s*)?(\d{1,2})\s*[:.\-]?\s*(.+)$/);
+    if(!m)return;const d=+m[1];if(d<1||d>dimOf())return;
+    let rest=m[2].toLowerCase(),ids=[];
+    names.forEach(([n,id])=>{if(rest.includes(n)){ids.push(id);rest=rest.split(n).join(" ")}});
+    rest.split(/[\s,/+]+/).filter(Boolean).forEach(w=>{const t=S.types.find(t=>t.short.toLowerCase()===w);if(t)ids.push(t.id)});
+    ids=[...new Set(ids)];
+    if(ids.some(id=>tp(id).kind==="x"))ids=ids.filter(id=>tp(id).kind==="x").slice(0,1);
+    if(ids.length)out[d]=ids;
+  });
+  return out;
+}
+$("impBtn").onclick=()=>{
+  const r=parse($("imp").value),ds=Object.keys(r);
+  if(!ds.length){$("impMsg").textContent="ไม่พบวันที่ที่อ่านได้ ลองเขียนเป็น เช่น 16 เช้า หรือ 17 บ่าย ดึก (บรรทัดละวัน)";return}
+  ds.forEach(d=>{S.days[key(d)]=r[d]});save();render();
+  $("impMsg").textContent=`นำเข้า ${ds.length} วัน ใน${MN[M]} ${Y+543} แล้ว ดูได้ที่แท็บปฏิทินเวร`;
+};
+render();
+</script>
+</body>
+</html>

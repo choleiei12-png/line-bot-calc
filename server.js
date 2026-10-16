@@ -3,7 +3,7 @@ const http = require("http"), crypto = require("crypto"), fs = require("fs");
 const SECRET = process.env.LINE_CHANNEL_SECRET, TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const FILE = process.env.DATA_FILE || "./data.json", PORT = process.env.PORT || 3000;
 const MN = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-const T0 = () => [["m","เวรเช้า","ช",800,"s"],["a","เวรบ่าย","บ",900,"s"],["n","เวรดึก","ด",1000,"s"],
+const T0 = () => [["m","เวรเช้า","ช",0,"s"],["a","เวรบ่าย","บ",900,"s"],["n","เวรดึก","ด",1000,"s"],
   ["om","OT เช้า","OT",700,"o"],["oa","OT บ่าย","OT",900,"o"],["on","OT ดึก","OT",800,"o"],["x","OFF","OFF",0,"x"]]
   .map(([id,name,short,rate,kind]) => ({id,name,short,rate,kind}));
 let DB = {}; try { DB = JSON.parse(fs.readFileSync(FILE, "utf8")); } catch {}

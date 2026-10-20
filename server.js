@@ -81,13 +81,14 @@ function shiftSummary(u, Y, mo) {
 const ASK = "จะใช้ปฏิทินอะไร?\n1. ปฏิทินเวร\n2. ปฏิทินค่าใช้จ่าย\n\nพิมพ์ 1 หรือ 2 (หรือพิมพ์ชื่อปฏิทินก็ได้)";
 const C0 = () => [["b","อาหารเช้า","#f5b83d"],["l","อาหารกลางวัน","#ee8a4b"],["d","อาหารเย็น","#3b2fd8"],["k","เครื่องดื่ม","#17a589"],["s","ของว่าง","#e0457b"]].map(([id,name,color]) => ({id,name,color}));
 const ex = u => {
-  const e = u.exp || (u.exp = { cats: C0(), items: {}, budget: 0, v: 2 });
+  const e = u.exp || (u.exp = { cats: C0(), items: {}, none: {}, budget: 0, v: 2 });
   if (!e.v) { // ย้ายจากชุดหมวดรุ่นแรก (อาหาร/เดินทาง/ของใช้/ที่พัก/อื่นๆ) มาเป็นประเภทอาหาร
     if (e.cats.length === 5 && ["f","t","g","h","o"].every((id, i) => e.cats[i].id === id)) {
       e.cats = C0(); Object.keys(e.items).forEach(k => e.items[k].forEach(x => { x.c = x.c === "f" ? "l" : ""; }));
     }
     e.v = 2;
   }
+  if (!e.none) e.none = {}; // วันที่ระบุว่า "ไม่มีค่าใช้จ่าย" (ยอด 0)
   return e;
 };
 const NOCAT = { id: "", name: "ไม่มีหมวด", color: "#9a97b3" };
@@ -113,29 +114,31 @@ function addExp(e, k, cat, amt, note) {
   const list = e.items[k] || (e.items[k] = []);
   if (list.length >= 100) return { err: "วันนี้มีรายการเยอะเกินไป (สูงสุด 100)" };
   list.push({ i: newId(), c: cat, a: amt, n: String(note || "").trim().slice(0, 40) });
+  delete e.none[k]; // วันที่มีรายการจ่ายแล้ว ไม่ใช่ "ไม่มีค่าใช้จ่าย" อีกต่อไป
   return { ok: true };
 }
 function expMonth(e, Y, M) {
-  const by = {}, days = {}, menus = {}; let total = 0, n = 0;
+  const by = {}, days = {}, menus = {}, none = []; let total = 0, n = 0;
   for (let d = 1; d <= dim(Y, M); d++) {
-    const l = e.items[key(Y, M, d)]; if (!l || !l.length) continue;
+    const l = e.items[key(Y, M, d)]; if (!l || !l.length) { if (e.none[key(Y, M, d)]) none.push(d); continue; }
     days[d] = l; l.forEach(x => { by[x.c] = (by[x.c] || 0) + x.a; const mm = menus[x.c] || (menus[x.c] = {}), nm = (x.n || "").trim(); mm[nm] = r2((mm[nm] || 0) + x.a); total += x.a; n++; });
   }
-  return { days, by, menus, total: r2(total), n };
+  return { days, by, menus, none, total: r2(total), n };
 }
 function expData(u, Y, M) {
   const e = ex(u), m = expMonth(e, Y, M);
-  return { Y, M, days: m.days, cats: e.cats, budget: e.budget || 0, sum: { total: m.total, n: m.n, by: m.by, menus: m.menus } };
+  return { Y, M, days: m.days, none: m.none, cats: e.cats, budget: e.budget || 0, sum: { total: m.total, n: m.n, by: m.by, menus: m.menus } };
 }
 function expBreakdown(e, by, menus) {
   const L = Object.keys(by).map(id => [id, catOf(e, id).name, by[id]]).sort((a, b) => b[2] - a[2]);
   const menuLines = id => { const ms = Object.entries(menus[id] || {}).sort((a, b) => b[1] - a[1]); return ms.slice(0, 8).map(([n, v]) => `   • ${n || "ไม่ระบุเมนู"} ${fmtx(v)}`).concat(ms.length > 8 ? [`   …อีก ${ms.length - 8} เมนู`] : []); };
   return L.map(([id, n, v]) => [`${n}: ${fmtx(v)}`, ...menuLines(id)].join("\n")).join("\n");
 }
+const noneLine = m => m.none.length ? `\nไม่มีค่าใช้จ่าย ${m.none.length} วัน (วันที่ ${m.none.join(", ")})` : "";
 function expSummary(u, Y, M) {
   const e = ex(u), m = expMonth(e, Y, M);
-  if (!m.n) return `ยังไม่มีค่าใช้จ่าย ${MN[M]} ${Y + 543}\nพิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
-  return `ค่าใช้จ่าย ${MN[M]} ${Y + 543}\n` + expBreakdown(e, m.by, m.menus) + `\nรวม ${fmtx(m.total)} บาท (${m.n} รายการ)`
+  if (!m.n && !m.none.length) return `ยังไม่มีค่าใช้จ่าย ${MN[M]} ${Y + 543}\nพิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
+  return `ค่าใช้จ่าย ${MN[M]} ${Y + 543}\n` + (m.n ? expBreakdown(e, m.by, m.menus) + "\n" : "") + `รวม ${fmtx(m.total)} บาท` + (m.n ? ` (${m.n} รายการ)` : "") + noneLine(m)
     + (e.budget ? `\nงบ ${fmtx(e.budget)} · ` + (m.total <= e.budget ? `เหลือ ${fmtx(e.budget - m.total)}` : `เกินงบ ${fmtx(m.total - e.budget)}`) : "");
 }
 // รายการจ่ายรายวัน: ทั้งเดือน / วันเดียว / หลายวัน / ช่วงวัน แล้วสรุปรวมให้
@@ -157,7 +160,7 @@ function expRange(u, now, args) {
   }
   const by = {}, menus = {}, rows = []; let total = 0, n = 0;
   keys.forEach(k => {
-    const l = e.items[k]; if (!l || !l.length) return; let dt = 0;
+    const l = e.items[k]; if (!l || !l.length) { if (e.none[k]) rows.push(`${fd(k)} — 0 บาท (ไม่มีค่าใช้จ่าย)`); return; } let dt = 0;
     l.forEach(x => { by[x.c] = (by[x.c] || 0) + x.a; const mm = menus[x.c] || (menus[x.c] = {}), nm = (x.n || "").trim(); mm[nm] = r2((mm[nm] || 0) + x.a); dt += x.a; total += x.a; n++; });
     rows.push(`${fd(k)} — ${fmtx(dt)} บาท\n` + l.map((x, i) => ` ${i + 1}. ${catOf(e, x.c).name}${x.n ? " " + x.n : ""} ${fmtx(x.a)}`).join("\n"));
   });
@@ -185,14 +188,39 @@ function expAdd(u, text, now) {
   return `บันทึกค่าใช้จ่าย ${ok.length} รายการ\n` + ok.join("\n") + (made.length ? `\n(สร้างประเภทใหม่: ${made.join(", ")})` : "")
     + (bad.length ? "\n\nบันทึกไม่ได้:\n" + bad.join("\n") : "") + `\n\nรวม${MN[M]} ${fmtx(mm.total)} บาท` + (e.budget ? ` (งบ${mm.total <= e.budget ? "เหลือ " + fmtx(e.budget - mm.total) : "เกิน " + fmtx(mm.total - e.budget)})` : "");
 }
+// บอกว่าวันไหนไม่มีค่าใช้จ่าย (ยอด 0): ไม่จ่าย / ไม่จ่าย 16 / ไม่จ่าย 16 18 / ไม่จ่าย 16-20 / ไม่จ่าย 16/11
+const BADNONE = "รูปแบบวันที่ไม่ถูกต้อง ตัวอย่าง: ไม่จ่าย (วันนี้) / ไม่จ่าย 16 / ไม่จ่าย 16 18 20 / ไม่จ่าย 16-20 / ไม่จ่าย 16/11";
+function expNone(u, now, args) {
+  const e = ex(u), { Y, M, D } = bkk(now), keys = new Set(); args = (args || "").trim();
+  if (!args) keys.add(key(Y, M, D));
+  else for (const tk of args.split(/[\s,]+/).filter(Boolean)) {
+    const x = tk.match(/^(\d{1,2})(?:-(\d{1,2}))?(?:\/(\d{1,2}))?$/); if (!x) return BADNONE;
+    const mo = x[3] ? +x[3] - 1 : M, a = +x[1], b = x[2] ? +x[2] : a;
+    if (mo < 0 || mo > 11 || a < 1 || b < a || b > dim(Y, mo)) return BADNONE;
+    for (let d = a; d <= b; d++) keys.add(key(Y, mo, d));
+  }
+  if (keys.size > 62) return "เลือกได้สูงสุด 62 วันต่อครั้ง";
+  const ok = [], skip = [];
+  [...keys].sort().forEach(k => {
+    const l = e.items[k] || [];
+    if (l.length) skip.push(`${fd(k)} (มี ${l.length} รายการ รวม ${fmtx(l.reduce((s, x) => s + x.a, 0))} บาท)`); else { e.none[k] = 1; ok.push(fd(k)); }
+  });
+  save();
+  let out = ok.length ? `บันทึกว่าไม่มีค่าใช้จ่าย ${ok.length} วัน (ยอด 0 บาท)\n${ok.join(", ")}` : "บันทึกไม่ได้";
+  if (skip.length) out += `\n\nข้ามเพราะมีรายการจ่ายอยู่แล้ว:\n${skip.join("\n")}\nถ้าจะตั้งเป็นไม่มีค่าใช้จ่าย ให้ลบจ่ายของวันนั้นก่อน (เช่น ลบจ่าย 16)`;
+  if (ok.length) out += `\n\nรวม${MN[M]} ${fmtx(expMonth(e, Y, M).total)} บาท`;
+  return out;
+}
 function expCmd(u, text, now) {
   const t = text.trim(), { Y, M } = bkk(now); let m;
   if ((m = t.match(/^จ่าย\s+([\s\S]+)$/))) return expAdd(u, m[1], now);
   if ((m = t.match(/^(?:สรุปจ่าย|สรุปค่าใช้จ่าย|ค่าใช้จ่าย)\s*(\d{1,2})?$/))) { const mo = m[1] ? +m[1] - 1 : M; return mo < 0 || mo > 11 ? "เดือนต้องเป็น 1–12" : expSummary(u, Y, mo); }
   if ((m = t.match(/^(?:รายการจ่าย|สรุปวัน)(?:\s+(.+))?$/))) return expRange(u, now, m[1]);
+  if ((m = t.match(/^(?:ไม่มีค่าใช้จ่าย|ไม่จ่าย)(?:\s+(.+))?$/))) return expNone(u, now, m[1]);
   if ((m = t.match(/^ลบจ่าย\s+(\d{1,2}(?:\/\d{1,2})?)(?:\s+(\d+))?$/))) {
     const e = ex(u), k = dkey(m[1], now); if (!k) return "วันที่ไม่ถูกต้อง";
-    const l = e.items[k] || []; if (!l.length) return `วันที่ ${fd(k)} ไม่มีรายการจ่าย`;
+    const l = e.items[k] || [];
+    if (!l.length) { if (e.none[k]) { delete e.none[k]; save(); return `ยกเลิกสถานะ "ไม่มีค่าใช้จ่าย" ของวันที่ ${fd(k)} แล้ว`; } return `วันที่ ${fd(k)} ไม่มีรายการจ่าย`; }
     if (m[2]) {
       const i = +m[2] - 1; if (!l[i]) return `ไม่พบรายการที่ ${m[2]} ของวันที่ ${fd(k)} (มี ${l.length} รายการ)`;
       const x = l.splice(i, 1)[0]; if (!l.length) delete e.items[k]; save(); return `ลบ ${catOf(e, x.c).name} ${fmtx(x.a)} ของวันที่ ${fd(k)} แล้ว`;
@@ -385,6 +413,7 @@ const HELP = `วิธีใช้
 • รายการจ่าย — ดูทั้งเดือน แยกเป็นรายวัน พร้อมยอดรวม
 • รายการจ่าย 16 / 16 18 20 / 16-20 / 16/11 — ดูเฉพาะวันที่เลือก (วันเดียว หลายวัน หรือช่วง) แล้วสรุปให้ (เดือนอื่น: รายการจ่าย เดือน 9)
 • ลบจ่าย 16  หรือ  ลบจ่าย 16 2 (ลบรายการที่ 2 ของวันที่ 16)
+• ไม่จ่าย / ไม่จ่าย 16 / ไม่จ่าย 16-20 — บอกว่าวันนั้นไม่มีค่าใช้จ่าย (ยอด 0) เลือกหลายวันได้ ยกเลิกด้วย ลบจ่าย 16
 • หมวด / เพิ่มหมวด ชานม / ลบหมวด ชานม
 • งบ 15000 — ตั้งงบต่อเดือน
 
@@ -528,7 +557,7 @@ function api(req, res, t, act, url) {
         return done({ imported: ds.length });
       }
       if (act === "exp") {
-        const x = ex(u);
+        const x = ex(u); let extra;
         if (b.op === "add") {
           const d = +b.d; if (!(d >= 1 && d <= dim(Y, M))) return send(400, { error: "bad date" });
           if (!x.cats.some(c => c.id === b.cat)) return send(400, { error: "เลือกหมวดก่อน" });
@@ -546,9 +575,20 @@ function api(req, res, t, act, url) {
           }
           if (okc(b.color)) c.color = b.color;
         } else if (b.op === "catdel") x.cats = x.cats.filter(i => i.id !== b.id);
+        else if (b.op === "none") {
+          const ds = [...new Set((Array.isArray(b.ds) ? b.ds : [b.d]).map(Number))].filter(d => Number.isInteger(d) && d >= 1 && d <= dim(Y, M)).slice(0, 31);
+          if (!ds.length) return send(400, { error: "bad date" });
+          let skipped = 0;
+          ds.forEach(d => { const k = key(Y, M, d); if ((x.items[k] || []).length) { if (b.force) delete x.items[k]; else { skipped++; return; } } x.none[k] = 1; });
+          if (skipped && ds.length === 1) return send(400, { error: "วันนี้มีรายการจ่ายอยู่ ต้องล้างรายการก่อนจึงจะตั้งเป็นไม่มีค่าใช้จ่ายได้" });
+          extra = { skipped };
+        } else if (b.op === "unnone") {
+          const d = +b.d; if (!(d >= 1 && d <= dim(Y, M))) return send(400, { error: "bad date" });
+          delete x.none[key(Y, M, d)];
+        }
         else if (b.op === "budget") x.budget = Math.min(1e8, Math.max(0, r2(+b.amt || 0)));
         else return send(400, { error: "bad op" });
-        save(); return send(200, expData(u, Y, M));
+        save(); return send(200, Object.assign(expData(u, Y, M), extra));
       }
       if (act === "team" || act === "swap") {
         const id = idOf(u); let r;

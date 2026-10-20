@@ -583,8 +583,9 @@ function api(req, res, t, act, url) {
           if (skipped && ds.length === 1) return send(400, { error: "วันนี้มีรายการจ่ายอยู่ ต้องล้างรายการก่อนจึงจะตั้งเป็นไม่มีค่าใช้จ่ายได้" });
           extra = { skipped };
         } else if (b.op === "unnone") {
-          const d = +b.d; if (!(d >= 1 && d <= dim(Y, M))) return send(400, { error: "bad date" });
-          delete x.none[key(Y, M, d)];
+          const ds = [...new Set((Array.isArray(b.ds) ? b.ds : [b.d]).map(Number))].filter(d => Number.isInteger(d) && d >= 1 && d <= dim(Y, M)).slice(0, 31);
+          if (!ds.length) return send(400, { error: "bad date" });
+          ds.forEach(d => { delete x.none[key(Y, M, d)]; });
         }
         else if (b.op === "budget") x.budget = Math.min(1e8, Math.max(0, r2(+b.amt || 0)));
         else return send(400, { error: "bad op" });

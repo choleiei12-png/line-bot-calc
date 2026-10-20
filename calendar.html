@@ -36,15 +36,26 @@ textarea{width:100%;margin:8px 0 12px;resize:vertical}
 .del{border:0;background:none;color:var(--mute);font-size:20px;padding:0 6px}
 .add{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.add input[type=text]{flex:1;min-width:110px}
 .add button{border:0;background:var(--brand);color:var(--bi);border-radius:10px;padding:0 14px;font-weight:700;min-height:38px}
+.tm{border-collapse:collapse;font-size:12px}.tm th,.tm td{border:1px solid var(--line);padding:3px;min-width:30px;text-align:center;vertical-align:middle}
+.tm th:first-child{position:sticky;left:0;background:var(--card);text-align:left;min-width:70px;white-space:nowrap}.tm tr.me th{color:var(--brand)}.tm tr.me td{background:var(--soft)}
+.sm{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:6px 10px;font-weight:500}
 #err{color:#d33;text-align:center;display:none;margin:0 0 10px}
+.dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap}.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.amt{font-size:10px;line-height:1;font-weight:700}
+.bar{height:10px;border-radius:6px;background:var(--soft);overflow:hidden;margin:10px 0 4px}.bar i{display:block;height:100%;background:var(--brand)}.bar.over i{background:#d33}
+.sw{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;flex:none}
 </style></head><body><main>
 <div class="nav"><button class="ib" id="prev" aria-label="เดือนก่อน">‹</button><b id="mt">…</b><button class="ib" id="next" aria-label="เดือนถัดไป">›</button></div>
 <p id="err"></p>
+<div class="tabs" id="modes"><button class="on" data-m="shift">ปฏิทินเวร</button><button data-m="exp">ปฏิทินค่าใช้จ่าย</button></div>
+<div id="shiftApp">
 <section class="card"><div class="lbl">รายได้เดือนนี้</div><div class="total"><span id="tot">0</span><small>บาท</small></div><div id="sum"></div></section>
-<div class="tabs"><button class="on" data-t="cal">ปฏิทินเวร</button><button data-t="line">LINE</button><button data-t="set">ตั้งค่า</button></div>
+<div class="tabs" id="stabs"><button class="on" data-t="cal">ปฏิทินเวร</button><button data-t="team">ทีม</button><button data-t="line">LINE</button><button data-t="set">ตั้งค่า</button></div>
 
 <section id="cal" class="card"><div class="cal" id="grid"></div><div class="legend" id="legend"></div>
 <p class="lbl" style="margin:12px 0 0">แตะวันที่เพื่อเพิ่มหรือลบเวร ข้อมูลตรงกับที่พิมพ์ในแชท LINE</p></section>
+
+<section id="team" class="hide"><p class="lbl" id="tmsg" style="white-space:pre-line"></p><div id="tbody"></div></section>
 
 <section id="line" class="hide">
  <div class="card"><h3>ส่งเข้า LINE</h3><p class="lbl" style="margin:0 0 12px">กดแล้วจะเปิด LINE ให้เลือกแชทหรือกลุ่มที่จะส่ง</p>
@@ -63,8 +74,29 @@ textarea{width:100%;margin:8px 0 12px;resize:vertical}
  <div class="card"><h3>รายได้อื่น (ต่อเดือน)</h3><div id="other"></div>
   <div class="add"><input type="text" id="on" placeholder="ชื่อรายการ"><input type="number" id="oa" inputmode="numeric" placeholder="บาท"><button id="oadd">เพิ่ม</button></div></div>
 </section>
+</div>
+
+<div id="expApp" class="hide">
+<section class="card"><div class="lbl">ค่าใช้จ่ายเดือนนี้</div><div class="total"><span id="etot">0</span><small>บาท</small></div><div id="ebud"></div><div id="esum"></div></section>
+<div class="tabs" id="etabs"><button class="on" data-t="ecal">ปฏิทินค่าใช้จ่าย</button><button data-t="eset">ตั้งค่า</button></div>
+<section id="ecal" class="card"><div class="cal" id="egrid"></div><div class="legend" id="elegend"></div>
+<p class="lbl" style="margin:12px 0 0">แตะวันที่เพื่อเพิ่มหรือลบค่าใช้จ่าย ข้อมูลตรงกับที่พิมพ์ในแชท LINE (เช่น จ่าย อาหาร 120)</p>
+<button class="primary alt" id="eshare" style="margin-top:12px">ส่งสรุปค่าใช้จ่ายเข้า LINE</button></section>
+<section id="eset" class="hide">
+ <div class="card"><h3>หมวดหมู่</h3><div id="ecats"></div>
+  <h3 style="margin-top:14px">เพิ่มหมวด</h3>
+  <div class="add"><input type="text" id="cn" placeholder="ชื่อหมวด เช่น กาแฟ"><input type="color" id="cc" value="#e0457b" aria-label="สี"><button id="cadd">เพิ่ม</button></div></div>
+ <div class="card"><h3>งบต่อเดือน</h3><p class="lbl" style="margin:0">ใส่ 0 เพื่อยกเลิกงบ</p>
+  <div class="add"><input type="number" id="eb" inputmode="decimal" placeholder="บาท"><button id="ebs">บันทึก</button></div></div>
+</section>
+</div>
 </main>
 <div class="sheet" id="sheet"><div class="panel"><h3 id="st"></h3><div class="chips" id="chips"></div><button class="primary" id="done">เสร็จ</button></div></div>
+<div class="sheet" id="esheet"><div class="panel" style="max-height:88vh;overflow:auto"><h3 id="est"></h3><div id="elist"></div>
+ <div class="add" style="margin-top:12px"><select id="ecat" style="flex:1;min-width:110px"></select><input type="number" id="eamt" inputmode="decimal" placeholder="บาท"></div>
+ <div class="add"><input type="text" id="enote" placeholder="โน้ต (ไม่ใส่ก็ได้)" maxlength="40"><button id="eadd">เพิ่ม</button></div>
+ <p class="lbl" id="emsg" style="color:#d33;margin:8px 0 0"></p>
+ <button class="primary" id="edone" style="margin-top:12px">เสร็จ</button></div></div>
 <script>
 const MN=["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const API="/api/"+location.pathname.split("/")[2],$=id=>document.getElementById(id);
@@ -82,7 +114,7 @@ async function call(act,body){
 }
 async function load(y,m){
   if(y!=null)D=Object.assign(D||{},{Y:y,M:m});
-  if(await call("month")){renderMain();if(!$("set").contains(document.activeElement))renderSettings();if(cur&&$("sheet").classList.contains("show"))chips()}
+  if(await call("month")){renderMain();if(!$("team").classList.contains("hide")&&!$("team").contains(document.activeElement))loadTeam();if(!$("set").contains(document.activeElement))renderSettings();if(cur&&$("sheet").classList.contains("show"))chips()}
 }
 function renderMain(){
   $("mt").textContent=`${MN[D.M]} ${D.Y+543}`;const s=D.sum;$("tot").textContent=fmt(s.total);
@@ -108,11 +140,11 @@ $("chips").onclick=async e=>{
 };
 $("done").onclick=()=>$("sheet").classList.remove("show");
 $("sheet").onclick=e=>{if(e.target.id==="sheet")$("sheet").classList.remove("show")};
-$("prev").onclick=()=>{let y=D.Y,m=D.M-1;if(m<0){m=11;y--}load(y,m)};
-$("next").onclick=()=>{let y=D.Y,m=D.M+1;if(m>11){m=0;y++}load(y,m)};
-document.querySelector(".tabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;
-  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
-  ["cal","line","set"].forEach(id=>$(id).classList.toggle("hide",id!==b.dataset.t))};
+$("prev").onclick=()=>{const S=MODE==="exp"?E:D;let y=S.Y,m=S.M-1;if(m<0){m=11;y--}MODE==="exp"?loadE(y,m):load(y,m)};
+$("next").onclick=()=>{const S=MODE==="exp"?E:D;let y=S.Y,m=S.M+1;if(m>11){m=0;y++}MODE==="exp"?loadE(y,m):load(y,m)};
+$("stabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;
+  $("stabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+  ["cal","team","line","set"].forEach(id=>$(id).classList.toggle("hide",id!==b.dataset.t));if(b.dataset.t==="team")loadTeam()};
 $("rates").onchange=async e=>{const d=e.target.dataset,v=e.target.value;
   const b=d.n?{name:v}:d.r?{rate:v}:d.c?{color:v}:null;if(!b)return;
   const id=d.n||d.r||d.c;if(!await act("type",Object.assign({op:"update",id},b),false))renderSettings()};
@@ -127,7 +159,108 @@ $("shareSch").onclick=()=>{const L=Object.keys(D.days).map(Number).sort((a,b)=>a
   toLine(`ตารางเวร ${MN[D.M]} ${D.Y+543}\n`+(L.join("\n")||"(ยังไม่มีเวร)"))};
 $("impBtn").onclick=async()=>{const r=await act("import",{text:$("imp").value},true);if(!r)return;
   $("impMsg").textContent=r.imported?`นำเข้า ${r.imported} วัน ใน${MN[D.M]} ${D.Y+543} แล้ว ดูได้ที่แท็บปฏิทินเวร`:"ไม่พบวันที่ที่อ่านได้ ลองเขียนเป็น เช่น 16 เช้า หรือ 17 บ่าย ดึก (บรรทัดละวัน)"};
-setInterval(()=>{if(D&&!busy&&!$("sheet").classList.contains("show")&&!document.activeElement.matches("input,textarea,select"))load(D.Y,D.M)},30000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden&&D&&!document.activeElement.matches("input,textarea,select"))load(D.Y,D.M)});
-load();
+setInterval(()=>{if(MODE==="shift"&&D&&!busy&&!$("sheet").classList.contains("show")&&!document.activeElement.matches("input,textarea,select"))load(D.Y,D.M)},30000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&MODE==="shift"&&D&&!document.activeElement.matches("input,textarea,select"))load(D.Y,D.M)});
+// ---- ทีม ----
+let TD=null;
+async function tcall(act,body){
+  try{const r=await(body?fetch(`${API}/${act}`,{method:"POST",body:JSON.stringify(Object.assign({y:D.Y,m:D.M},body))}):fetch(`${API}/team?y=${D.Y}&m=${D.M}`,{cache:"no-store"}));
+    const j=await r.json();if(!r.ok)throw new Error(j.error||"");err("");return j}
+  catch(e){err(e.message&&e.message!=="Failed to fetch"?e.message:"เชื่อมต่อไม่ได้");return null}
+}
+async function loadTeam(){const j=await tcall("team");if(j){TD=j;renderTeam()}}
+function renderTeam(){
+  const el=$("tbody"),T=TD;
+  if(!T.team){el.innerHTML=`<div class="card"><h3>สร้างทีมใหม่</h3><p class="lbl" style="margin:0">สมาชิกในทีมเห็นตารางเวรของกัน (ไม่เห็นรายได้) และขอแลกเวรกันได้</p><div class="add"><input type="text" id="tcn" placeholder="ชื่อทีม เช่น ตึก 5"><button data-op="create">สร้าง</button></div></div><div class="card"><h3>เข้าร่วมทีม</h3><div class="add"><input type="text" id="tjc" placeholder="รหัสทีม" style="text-transform:uppercase"><button data-op="join">เข้าร่วม</button></div></div>`;return}
+  const dim=new Date(D.Y,D.M+1,0).getDate(),ds=[...Array(dim).keys()].map(i=>i+1);
+  el.innerHTML=`<div class="card"><h3>${esc(T.team.name)}</h3><p class="lbl" style="margin:0 0 10px">รหัสทีม <b>${esc(T.team.code)}</b> · ${T.members.length} คน</p>
+  <div class="add" style="margin:0"><button data-op="invite">ชวนเพื่อนผ่าน LINE</button><button data-op="leave" style="background:var(--soft);color:var(--ink)">ออกจากทีม</button></div>
+  <div class="field" style="margin-top:10px"><span class="lbl">ชื่อของฉัน</span><span style="display:flex;gap:6px"><input type="text" id="tmn" value="${esc(T.me||"")}" style="width:130px"><button class="sm" data-op="name">บันทึก</button></span></div></div>
+  <div class="card"><h3>ตารางเวรทีม ${MN[D.M]}</h3><div style="overflow-x:auto"><table class="tm"><thead><tr><th>ชื่อ</th>${ds.map(d=>`<th>${d}</th>`).join("")}</tr></thead><tbody>${T.members.map(m=>`<tr${m.me?' class="me"':""}><th>${esc(m.name)}</th>${ds.map(d=>`<td>${(m.days[d]||[]).map(x=>`<span class="tg" style="background:${x.c};color:${ink(x.c)}">${esc(x.s)}</span>`).join("")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>
+  <div class="card"><h3>คำขอแลกเวร</h3>${T.swaps.length?T.swaps.map(s=>`<div class="row" style="gap:8px;align-items:center"><span>${esc(s.text)}</span><span style="display:flex;gap:6px;flex:none">${s.incoming?`<button class="sm" data-op="accept" data-id="${s.id}">รับ</button><button class="sm" data-op="reject" data-id="${s.id}">ปฏิเสธ</button>`:`<button class="sm" data-op="cancel" data-id="${s.id}">ยกเลิก</button>`}</span></div>`).join(""):'<p class="lbl">ไม่มีคำขอที่รออยู่</p>'}</div>
+  ${T.others.length?`<div class="card"><h3>ขอแลกเวร / ฝากเวร</h3><p class="lbl" style="margin:0">ใส่เลขวันที่ของ${MN[D.M]} ${D.Y+543}</p>
+  <div class="add"><select id="swk"><option value="swap">แลกเวร</option><option value="give">ฝากเวร</option></select><select id="swn">${T.others.map(n=>`<option>${esc(n)}</option>`).join("")}</select></div>
+  <div class="add"><input type="number" id="swa" inputmode="numeric" placeholder="วันของฉัน" style="width:110px"><input type="number" id="swb" inputmode="numeric" placeholder="วันของเขา" style="width:110px"><button data-op="send">ส่งคำขอ</button></div></div>`:""}`;
+}
+$("tbody").onchange=e=>{if(e.target.id==="swk")$("swb").style.display=e.target.value==="give"?"none":""};
+$("tbody").onclick=async e=>{
+  const b=e.target.closest("[data-op]");if(!b)return;const op=b.dataset.op;let j=null;
+  const T=o=>tcall("team",o),S=o=>tcall("swap",o);
+  if(op==="create")j=await T({op,name:$("tcn").value});
+  else if(op==="join")j=await T({op,code:$("tjc").value});
+  else if(op==="name")j=await T({op,name:$("tmn").value});
+  else if(op==="leave"){if(confirm("ออกจากทีมนี้?"))j=await T({op})}
+  else if(op==="invite"){toLine(`ชวนเข้าทีมเวร "${TD.team.name}"\nแอดบอทแล้วพิมพ์ในแชทบอท: เข้าทีม ${TD.team.code}`+(TD.team.add?`\nแอดบอท: ${TD.team.add}`:""));return}
+  else if(op==="send"){const mo=D.M+1,k=$("swk").value;j=await S({op:"new",kind:k,name:$("swn").value,a:`${$("swa").value}/${mo}`,b:`${$("swb").value||0}/${mo}`})}
+  else j=await S({op,id:+b.dataset.id});
+  if(j){TD=j;$("tmsg").textContent=j.msg||"";renderTeam();if(["accept","new"].includes(op)||op==="accept")load(D.Y,D.M)}
+};
+// ---- ปฏิทินค่าใช้จ่าย ----
+let E=null,MODE="shift",ecur=null,ebusy=false;
+const DOW=["อา","จ","อ","พ","พฤ","ศ","ส"],fx=n=>(+n).toLocaleString("th-TH",{maximumFractionDigits:2}),cp=n=>n>=10000?(Math.round(n/100)/10)+"k":fx(n);
+const NOC={id:"",name:"ไม่มีหมวด",color:"#9a97b3"},ecat=id=>(E&&E.cats&&E.cats.find(c=>c.id===id))||NOC;
+const emsg=m=>{$("emsg").textContent=m||""};
+async function ecall(body){
+  try{
+    const r=await(body?fetch(`${API}/exp`,{method:"POST",body:JSON.stringify(Object.assign({y:E&&E.Y,m:E&&E.M},body))}):fetch(`${API}/exp${E?`?y=${E.Y}&m=${E.M}`:""}`,{cache:"no-store"}));
+    const j=await r.json();if(!r.ok)throw new Error(j.error||"");E=j;err("");emsg("");return j;
+  }catch(e){const m=e.message&&e.message!=="Failed to fetch"?e.message:"เชื่อมต่อไม่ได้ ถ้าลิงก์หมดอายุให้พิมพ์ ปฏิทิน ในแชท LINE";err(m);emsg(m);return null}
+}
+async function loadE(y,m){
+  if(y!=null)E=Object.assign(E||{},{Y:y,M:m});
+  if(await ecall()){renderE();if(!$("eset").contains(document.activeElement))renderESet();if(ecur&&$("esheet").classList.contains("show"))renderDay()}
+}
+function renderE(){
+  $("mt").textContent=`${MN[E.M]} ${E.Y+543}`;const s=E.sum;$("etot").textContent=fx(s.total);
+  const over=E.budget&&s.total>E.budget;
+  $("ebud").innerHTML=E.budget?`<div class="bar${over?" over":""}"><i style="width:${Math.min(100,s.total/E.budget*100)}%"></i></div><div class="lbl">งบ ${fx(E.budget)} บาท · ${over?`เกินงบ ${fx(s.total-E.budget)}`:`เหลือ ${fx(E.budget-s.total)}`}</div>`:"";
+  const ids=Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]);
+  $("esum").innerHTML=ids.length?ids.map(id=>{const c=ecat(id);return `<div class="row"><span><span class="sw" style="background:${c.color}"></span>${esc(c.name)}</span><b>${fx(s.by[id])}</b></div>`}).join("")+`<div class="row"><span class="lbl">ทั้งหมด</span><span class="lbl">${s.n} รายการ</span></div>`:'<p class="lbl" style="margin:10px 0 0">ยังไม่มีรายการ แตะวันที่ในปฏิทินเพื่อเพิ่ม</p>';
+  const first=new Date(E.Y,E.M,1).getDay(),dim=new Date(E.Y,E.M+1,0).getDate(),n=new Date();
+  let h=DOW.map(d=>`<div class="dow">${d}</div>`).join("")+'<div class="day empty"></div>'.repeat(first);
+  for(let d=1;d<=dim;d++){const td=d===n.getDate()&&E.M===n.getMonth()&&E.Y===n.getFullYear(),l=E.days[d]||[],tot=l.reduce((a,x)=>a+x.a,0),cs=[...new Set(l.map(x=>x.c))].slice(0,4);
+    h+=`<button class="day${td?" today":""}" data-d="${d}"><span>${d}</span>${l.length?`<span class="amt">${cp(tot)}</span><span class="dots">${cs.map(c=>`<i class="dot" style="background:${ecat(c).color}"></i>`).join("")}</span>`:""}</button>`}
+  $("egrid").innerHTML=h;
+  $("elegend").innerHTML=E.cats.map(c=>`<span><i class="dot" style="background:${c.color}"></i> ${esc(c.name)}</span>`).join("");
+}
+function renderESet(){
+  $("ecats").innerHTML=E.cats.map(c=>`<div class="field"><input type="color" data-cc="${c.id}" value="${c.color}" aria-label="สี"><input type="text" data-cn="${c.id}" value="${esc(c.name)}" maxlength="20" style="flex:1;min-width:0"><button class="del" data-cd="${c.id}" aria-label="ลบ">×</button></div>`).join("");
+  $("eb").value=E.budget||"";
+}
+function renderDay(){
+  const l=E.days[ecur]||[],v=$("ecat").value;
+  $("elist").innerHTML=l.length?l.map(x=>{const c=ecat(x.c);return `<div class="row" style="align-items:center;gap:8px"><span style="min-width:0"><span class="sw" style="background:${c.color}"></span>${esc(c.name)}${x.n?` <span class="lbl">${esc(x.n)}</span>`:""}</span><span style="display:flex;align-items:center;flex:none"><b>${fx(x.a)}</b><button class="del" data-ed="${x.i}" aria-label="ลบ">×</button></span></div>`}).join(""):'<p class="lbl">ยังไม่มีรายการในวันนี้</p>';
+  $("ecat").innerHTML=E.cats.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  if(v&&E.cats.some(c=>c.id===v))$("ecat").value=v;
+}
+async function eact(body,full){if(ebusy)return null;ebusy=true;const r=await ecall(body);ebusy=false;if(r){renderE();if(full)renderESet()}return r}
+$("egrid").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;ecur=+b.dataset.d;$("est").textContent=`${ecur} ${MN[E.M]} ${E.Y+543}`;emsg("");renderDay();$("esheet").classList.add("show")};
+$("eadd").onclick=async()=>{if(await eact({op:"add",d:ecur,cat:$("ecat").value,amt:$("eamt").value,note:$("enote").value})){$("eamt").value=$("enote").value="";renderDay()}};
+$("elist").onclick=async e=>{const b=e.target.closest("[data-ed]");if(b&&await eact({op:"del",d:ecur,id:b.dataset.ed}))renderDay()};
+$("edone").onclick=()=>$("esheet").classList.remove("show");
+$("esheet").onclick=e=>{if(e.target.id==="esheet")$("esheet").classList.remove("show")};
+$("etabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;
+  $("etabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+  ["ecal","eset"].forEach(id=>$(id).classList.toggle("hide",id!==b.dataset.t))};
+$("ecats").onchange=async e=>{const d=e.target.dataset,id=d.cn||d.cc;if(!id)return;
+  if(!await eact(Object.assign({op:"catupd",id},d.cn?{name:e.target.value}:{color:e.target.value}),true))renderESet()};
+$("ecats").onclick=e=>{const b=e.target.closest("[data-cd]");if(!b)return;const c=ecat(b.dataset.cd);
+  if(confirm(`ลบหมวด "${c.name}"? รายการในหมวดนี้จะกลายเป็น "ไม่มีหมวด"`))eact({op:"catdel",id:c.id},true)};
+$("cadd").onclick=async()=>{if(await eact({op:"catadd",name:$("cn").value,color:$("cc").value},true))$("cn").value=""};
+$("ebs").onclick=()=>eact({op:"budget",amt:$("eb").value||0},true);
+$("eshare").onclick=()=>{const s=E.sum,ids=Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]);
+  toLine(`ค่าใช้จ่าย ${MN[E.M]} ${E.Y+543}\n`+(ids.map(i=>`${ecat(i).name}: ${fx(s.by[i])} บาท`).join("\n")||"(ยังไม่มีรายการ)")+`\nรวม ${fx(s.total)} บาท`+(E.budget?`\nงบ ${fx(E.budget)} บาท`:""))};
+setInterval(()=>{if(MODE==="exp"&&E&&E.cats&&!ebusy&&!$("esheet").classList.contains("show")&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)},30000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&MODE==="exp"&&E&&E.cats&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)});
+// ---- สลับปฏิทินเวร / ค่าใช้จ่าย ----
+function setMode(m){
+  MODE=m;$("modes").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.m===m));
+  $("shiftApp").classList.toggle("hide",m!=="shift");$("expApp").classList.toggle("hide",m!=="exp");
+  document.title=m==="exp"?"ปฏิทินค่าใช้จ่าย":"ปฏิทินเวร";
+  try{const u=new URL(location.href);u.searchParams.set("v",m);history.replaceState(null,"",u)}catch{}
+  const src=m==="exp"?D:E,has=src&&src.Y!=null;
+  if(m==="exp")has?loadE(src.Y,src.M):loadE();else has?load(src.Y,src.M):load();
+}
+$("modes").onclick=e=>{const b=e.target.closest("button");if(b&&b.dataset.m!==MODE)setMode(b.dataset.m)};
+setMode(new URLSearchParams(location.search).get("v")==="exp"?"exp":"shift");
 </script></body></html>

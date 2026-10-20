@@ -43,6 +43,7 @@ textarea{width:100%;margin:8px 0 12px;resize:vertical}
 .dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap}.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
 .amt{font-size:10px;line-height:1;font-weight:700}
 .bar{height:10px;border-radius:6px;background:var(--soft);overflow:hidden;margin:10px 0 4px}.bar i{display:block;height:100%;background:var(--brand)}.bar.over i{background:#d33}
+.sub{padding:4px 0 4px 18px;border-top:0}
 .sw{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;flex:none}
 </style></head><body><main>
 <div class="nav"><button class="ib" id="prev" aria-label="เดือนก่อน">‹</button><b id="mt">…</b><button class="ib" id="next" aria-label="เดือนถัดไป">›</button></div>
@@ -80,12 +81,12 @@ textarea{width:100%;margin:8px 0 12px;resize:vertical}
 <section class="card"><div class="lbl">ค่าใช้จ่ายเดือนนี้</div><div class="total"><span id="etot">0</span><small>บาท</small></div><div id="ebud"></div><div id="esum"></div></section>
 <div class="tabs" id="etabs"><button class="on" data-t="ecal">ปฏิทินค่าใช้จ่าย</button><button data-t="eset">ตั้งค่า</button></div>
 <section id="ecal" class="card"><div class="cal" id="egrid"></div><div class="legend" id="elegend"></div>
-<p class="lbl" style="margin:12px 0 0">แตะวันที่เพื่อเพิ่มหรือลบค่าใช้จ่าย ข้อมูลตรงกับที่พิมพ์ในแชท LINE (เช่น จ่าย อาหาร 120)</p>
+<p class="lbl" style="margin:12px 0 0">แตะวันที่เพื่อเพิ่มหรือลบค่าใช้จ่าย เลือกประเภทแล้วใส่เมนูกับราคา ข้อมูลตรงกับที่พิมพ์ในแชท LINE (เช่น จ่าย กลางวัน 60 ข้าวมันไก่)</p>
 <button class="primary alt" id="eshare" style="margin-top:12px">ส่งสรุปค่าใช้จ่ายเข้า LINE</button></section>
 <section id="eset" class="hide">
- <div class="card"><h3>หมวดหมู่</h3><div id="ecats"></div>
-  <h3 style="margin-top:14px">เพิ่มหมวด</h3>
-  <div class="add"><input type="text" id="cn" placeholder="ชื่อหมวด เช่น กาแฟ"><input type="color" id="cc" value="#e0457b" aria-label="สี"><button id="cadd">เพิ่ม</button></div></div>
+ <div class="card"><h3>ประเภทอาหาร</h3><p class="lbl" style="margin:0 0 6px">เปลี่ยนชื่อ/สี ลบ หรือเพิ่มประเภทอื่นได้ตามต้องการ</p><div id="ecats"></div>
+  <h3 style="margin-top:14px">เพิ่มประเภท</h3>
+  <div class="add"><input type="text" id="cn" placeholder="ชื่อประเภท เช่น ชานม"><input type="color" id="cc" value="#e0457b" aria-label="สี"><button id="cadd">เพิ่ม</button></div></div>
  <div class="card"><h3>งบต่อเดือน</h3><p class="lbl" style="margin:0">ใส่ 0 เพื่อยกเลิกงบ</p>
   <div class="add"><input type="number" id="eb" inputmode="decimal" placeholder="บาท"><button id="ebs">บันทึก</button></div></div>
 </section>
@@ -94,7 +95,7 @@ textarea{width:100%;margin:8px 0 12px;resize:vertical}
 <div class="sheet" id="sheet"><div class="panel"><h3 id="st"></h3><div class="chips" id="chips"></div><button class="primary" id="done">เสร็จ</button></div></div>
 <div class="sheet" id="esheet"><div class="panel" style="max-height:88vh;overflow:auto"><h3 id="est"></h3><div id="elist"></div>
  <div class="add" style="margin-top:12px"><select id="ecat" style="flex:1;min-width:110px"></select><input type="number" id="eamt" inputmode="decimal" placeholder="บาท"></div>
- <div class="add"><input type="text" id="enote" placeholder="โน้ต (ไม่ใส่ก็ได้)" maxlength="40"><button id="eadd">เพิ่ม</button></div>
+ <div class="add"><input type="text" id="enote" placeholder="เมนู เช่น ข้าวมันไก่" maxlength="40"><button id="eadd">เพิ่ม</button></div>
  <p class="lbl" id="emsg" style="color:#d33;margin:8px 0 0"></p>
  <button class="primary" id="edone" style="margin-top:12px">เสร็จ</button></div></div>
 <script>
@@ -215,7 +216,8 @@ function renderE(){
   const over=E.budget&&s.total>E.budget;
   $("ebud").innerHTML=E.budget?`<div class="bar${over?" over":""}"><i style="width:${Math.min(100,s.total/E.budget*100)}%"></i></div><div class="lbl">งบ ${fx(E.budget)} บาท · ${over?`เกินงบ ${fx(s.total-E.budget)}`:`เหลือ ${fx(E.budget-s.total)}`}</div>`:"";
   const ids=Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]);
-  $("esum").innerHTML=ids.length?ids.map(id=>{const c=ecat(id);return `<div class="row"><span><span class="sw" style="background:${c.color}"></span>${esc(c.name)}</span><b>${fx(s.by[id])}</b></div>`}).join("")+`<div class="row"><span class="lbl">ทั้งหมด</span><span class="lbl">${s.n} รายการ</span></div>`:'<p class="lbl" style="margin:10px 0 0">ยังไม่มีรายการ แตะวันที่ในปฏิทินเพื่อเพิ่ม</p>';
+  const mrows=id=>Object.entries((s.menus&&s.menus[id])||{}).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`<div class="row sub"><span class="lbl">${n?esc(n):"ไม่ระบุเมนู"}</span><span class="lbl">${fx(v)}</span></div>`).join("");
+  $("esum").innerHTML=ids.length?ids.map(id=>{const c=ecat(id);return `<div class="row"><span><span class="sw" style="background:${c.color}"></span>${esc(c.name)}</span><b>${fx(s.by[id])}</b></div>${mrows(id)}`}).join("")+`<div class="row"><span class="lbl">ทั้งหมด</span><span class="lbl">${s.n} รายการ</span></div>`:'<p class="lbl" style="margin:10px 0 0">ยังไม่มีรายการ แตะวันที่ในปฏิทินเพื่อเพิ่ม</p>';
   const first=new Date(E.Y,E.M,1).getDay(),dim=new Date(E.Y,E.M+1,0).getDate(),n=new Date();
   let h=DOW.map(d=>`<div class="dow">${d}</div>`).join("")+'<div class="day empty"></div>'.repeat(first);
   for(let d=1;d<=dim;d++){const td=d===n.getDate()&&E.M===n.getMonth()&&E.Y===n.getFullYear(),l=E.days[d]||[],tot=l.reduce((a,x)=>a+x.a,0),cs=[...new Set(l.map(x=>x.c))].slice(0,4);
@@ -229,7 +231,7 @@ function renderESet(){
 }
 function renderDay(){
   const l=E.days[ecur]||[],v=$("ecat").value;
-  $("elist").innerHTML=l.length?l.map(x=>{const c=ecat(x.c);return `<div class="row" style="align-items:center;gap:8px"><span style="min-width:0"><span class="sw" style="background:${c.color}"></span>${esc(c.name)}${x.n?` <span class="lbl">${esc(x.n)}</span>`:""}</span><span style="display:flex;align-items:center;flex:none"><b>${fx(x.a)}</b><button class="del" data-ed="${x.i}" aria-label="ลบ">×</button></span></div>`}).join(""):'<p class="lbl">ยังไม่มีรายการในวันนี้</p>';
+  $("elist").innerHTML=l.length?l.map(x=>{const c=ecat(x.c);return `<div class="row" style="align-items:center;gap:8px"><span style="min-width:0"><span class="sw" style="background:${c.color}"></span>${x.n?esc(x.n):'<span class="lbl">ไม่ระบุเมนู</span>'} <span class="lbl">${esc(c.name)}</span></span><span style="display:flex;align-items:center;flex:none"><b>${fx(x.a)}</b><button class="del" data-ed="${x.i}" aria-label="ลบ">×</button></span></div>`}).join(""):'<p class="lbl">ยังไม่มีรายการในวันนี้</p>';
   $("ecat").innerHTML=E.cats.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
   if(v&&E.cats.some(c=>c.id===v))$("ecat").value=v;
 }
@@ -245,11 +247,11 @@ $("etabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;
 $("ecats").onchange=async e=>{const d=e.target.dataset,id=d.cn||d.cc;if(!id)return;
   if(!await eact(Object.assign({op:"catupd",id},d.cn?{name:e.target.value}:{color:e.target.value}),true))renderESet()};
 $("ecats").onclick=e=>{const b=e.target.closest("[data-cd]");if(!b)return;const c=ecat(b.dataset.cd);
-  if(confirm(`ลบหมวด "${c.name}"? รายการในหมวดนี้จะกลายเป็น "ไม่มีหมวด"`))eact({op:"catdel",id:c.id},true)};
+  if(confirm(`ลบประเภท "${c.name}"? รายการในประเภทนี้จะกลายเป็น "ไม่มีหมวด"`))eact({op:"catdel",id:c.id},true)};
 $("cadd").onclick=async()=>{if(await eact({op:"catadd",name:$("cn").value,color:$("cc").value},true))$("cn").value=""};
 $("ebs").onclick=()=>eact({op:"budget",amt:$("eb").value||0},true);
 $("eshare").onclick=()=>{const s=E.sum,ids=Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]);
-  toLine(`ค่าใช้จ่าย ${MN[E.M]} ${E.Y+543}\n`+(ids.map(i=>`${ecat(i).name}: ${fx(s.by[i])} บาท`).join("\n")||"(ยังไม่มีรายการ)")+`\nรวม ${fx(s.total)} บาท`+(E.budget?`\nงบ ${fx(E.budget)} บาท`:""))};
+  toLine(`ค่าใช้จ่าย ${MN[E.M]} ${E.Y+543}\n`+(ids.map(i=>`${ecat(i).name}: ${fx(s.by[i])} บาท`+Object.entries((s.menus&&s.menus[i])||{}).sort((a,b)=>b[1]-a[1]).filter(([n])=>n).map(([n,v])=>`\n  • ${n} ${fx(v)}`).join("")).join("\n")||"(ยังไม่มีรายการ)")+`\nรวม ${fx(s.total)} บาท`+(E.budget?`\nงบ ${fx(E.budget)} บาท`:""))};
 setInterval(()=>{if(MODE==="exp"&&E&&E.cats&&!ebusy&&!$("esheet").classList.contains("show")&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)},30000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&MODE==="exp"&&E&&E.cats&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)});
 // ---- สลับปฏิทินเวร / ค่าใช้จ่าย ----

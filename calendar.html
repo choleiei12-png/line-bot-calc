@@ -43,6 +43,7 @@ textarea{width:100%;margin:8px 0 12px;resize:vertical}
 .dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap}.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
 .amt{font-size:10px;line-height:1;font-weight:700}
 .bar{height:10px;border-radius:6px;background:var(--soft);overflow:hidden;margin:10px 0 4px}.bar i{display:block;height:100%;background:var(--brand)}.bar.over i{background:#d33}
+.day.sel{border:2px solid var(--brand);background:var(--soft)}
 .sub{padding:4px 0 4px 18px;border-top:0}
 .sw{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;flex:none}
 </style></head><body><main>
@@ -79,10 +80,19 @@ textarea{width:100%;margin:8px 0 12px;resize:vertical}
 
 <div id="expApp" class="hide">
 <section class="card"><div class="lbl">ค่าใช้จ่ายเดือนนี้</div><div class="total"><span id="etot">0</span><small>บาท</small></div><div id="ebud"></div><div id="esum"></div></section>
-<div class="tabs" id="etabs"><button class="on" data-t="ecal">ปฏิทินค่าใช้จ่าย</button><button data-t="eset">ตั้งค่า</button></div>
+<div class="tabs" id="etabs"><button class="on" data-t="ecal">ปฏิทิน</button><button data-t="eday">สรุปรายวัน</button><button data-t="eset">ตั้งค่า</button></div>
 <section id="ecal" class="card"><div class="cal" id="egrid"></div><div class="legend" id="elegend"></div>
 <p class="lbl" style="margin:12px 0 0">แตะวันที่เพื่อเพิ่มหรือลบค่าใช้จ่าย เลือกประเภทแล้วใส่เมนูกับราคา ข้อมูลตรงกับที่พิมพ์ในแชท LINE (เช่น จ่าย กลางวัน 60 ข้าวมันไก่)</p>
 <button class="primary alt" id="eshare" style="margin-top:12px">ส่งสรุปค่าใช้จ่ายเข้า LINE</button></section>
+<section id="eday" class="hide">
+ <div class="card"><h3>สรุปรายวัน</h3><p class="lbl" style="margin:0">ดูว่าแต่ละวันจ่ายอะไรบ้าง ยอดเท่าไหร่ เลือกทั้งเดือน หรือเลือกเฉพาะบางวัน/ช่วงวันก็ได้</p>
+  <div class="tabs" id="escope" style="margin:12px 0 0"><button class="on" data-s="month">ทั้งเดือน</button><button data-s="pick">เลือกวัน</button></div>
+  <div id="epick" class="hide" style="margin-top:12px"><div class="cal" id="epgrid"></div>
+   <div class="add"><button class="sm" id="pall">เลือกทั้งหมด</button><button class="sm" id="pclr">ล้าง</button></div>
+   <div class="add"><input type="number" id="pf" inputmode="numeric" placeholder="จากวันที่" style="width:100px"><input type="number" id="pt" inputmode="numeric" placeholder="ถึงวันที่" style="width:100px"><button id="prange">เลือกช่วง</button></div></div></div>
+ <div class="card" id="eres"></div>
+ <button class="primary alt" id="edshare">ส่งสรุปนี้เข้า LINE</button>
+</section>
 <section id="eset" class="hide">
  <div class="card"><h3>ประเภทอาหาร</h3><p class="lbl" style="margin:0 0 6px">เปลี่ยนชื่อ/สี ลบ หรือเพิ่มประเภทอื่นได้ตามต้องการ</p><div id="ecats"></div>
   <h3 style="margin-top:14px">เพิ่มประเภท</h3>
@@ -141,8 +151,8 @@ $("chips").onclick=async e=>{
 };
 $("done").onclick=()=>$("sheet").classList.remove("show");
 $("sheet").onclick=e=>{if(e.target.id==="sheet")$("sheet").classList.remove("show")};
-$("prev").onclick=()=>{const S=MODE==="exp"?E:D;let y=S.Y,m=S.M-1;if(m<0){m=11;y--}MODE==="exp"?loadE(y,m):load(y,m)};
-$("next").onclick=()=>{const S=MODE==="exp"?E:D;let y=S.Y,m=S.M+1;if(m>11){m=0;y++}MODE==="exp"?loadE(y,m):load(y,m)};
+$("prev").onclick=()=>{if(typeof SEL!=="undefined")SEL.clear();const S=MODE==="exp"?E:D;let y=S.Y,m=S.M-1;if(m<0){m=11;y--}MODE==="exp"?loadE(y,m):load(y,m)};
+$("next").onclick=()=>{if(typeof SEL!=="undefined")SEL.clear();const S=MODE==="exp"?E:D;let y=S.Y,m=S.M+1;if(m>11){m=0;y++}MODE==="exp"?loadE(y,m):load(y,m)};
 $("stabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;
   $("stabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
   ["cal","team","line","set"].forEach(id=>$(id).classList.toggle("hide",id!==b.dataset.t));if(b.dataset.t==="team")loadTeam()};
@@ -224,6 +234,7 @@ function renderE(){
     h+=`<button class="day${td?" today":""}" data-d="${d}"><span>${d}</span>${l.length?`<span class="amt">${cp(tot)}</span><span class="dots">${cs.map(c=>`<i class="dot" style="background:${ecat(c).color}"></i>`).join("")}</span>`:""}</button>`}
   $("egrid").innerHTML=h;
   $("elegend").innerHTML=E.cats.map(c=>`<span><i class="dot" style="background:${c.color}"></i> ${esc(c.name)}</span>`).join("");
+  renderDays();
 }
 function renderESet(){
   $("ecats").innerHTML=E.cats.map(c=>`<div class="field"><input type="color" data-cc="${c.id}" value="${c.color}" aria-label="สี"><input type="text" data-cn="${c.id}" value="${esc(c.name)}" maxlength="20" style="flex:1;min-width:0"><button class="del" data-cd="${c.id}" aria-label="ลบ">×</button></div>`).join("");
@@ -243,7 +254,7 @@ $("edone").onclick=()=>$("esheet").classList.remove("show");
 $("esheet").onclick=e=>{if(e.target.id==="esheet")$("esheet").classList.remove("show")};
 $("etabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;
   $("etabs").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
-  ["ecal","eset"].forEach(id=>$(id).classList.toggle("hide",id!==b.dataset.t))};
+  ["ecal","eday","eset"].forEach(id=>$(id).classList.toggle("hide",id!==b.dataset.t))};
 $("ecats").onchange=async e=>{const d=e.target.dataset,id=d.cn||d.cc;if(!id)return;
   if(!await eact(Object.assign({op:"catupd",id},d.cn?{name:e.target.value}:{color:e.target.value}),true))renderESet()};
 $("ecats").onclick=e=>{const b=e.target.closest("[data-cd]");if(!b)return;const c=ecat(b.dataset.cd);
@@ -252,6 +263,40 @@ $("cadd").onclick=async()=>{if(await eact({op:"catadd",name:$("cn").value,color:
 $("ebs").onclick=()=>eact({op:"budget",amt:$("eb").value||0},true);
 $("eshare").onclick=()=>{const s=E.sum,ids=Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]);
   toLine(`ค่าใช้จ่าย ${MN[E.M]} ${E.Y+543}\n`+(ids.map(i=>`${ecat(i).name}: ${fx(s.by[i])} บาท`+Object.entries((s.menus&&s.menus[i])||{}).sort((a,b)=>b[1]-a[1]).filter(([n])=>n).map(([n,v])=>`\n  • ${n} ${fx(v)}`).join("")).join("\n")||"(ยังไม่มีรายการ)")+`\nรวม ${fx(s.total)} บาท`+(E.budget?`\nงบ ${fx(E.budget)} บาท`:""))};
+// ---- สรุปรายวัน / เลือกหลายวัน ----
+const SEL=new Set();let SCOPE="month";
+const dimE=()=>new Date(E.Y,E.M+1,0).getDate();
+const selDays=()=>SCOPE==="month"?[...Array(dimE()).keys()].map(i=>i+1):[...SEL].filter(d=>d>=1&&d<=dimE()).sort((a,b)=>a-b);
+function calcDays(){
+  const ds=selDays(),by={},menus={},rows=[];let total=0,n=0;
+  ds.forEach(d=>{const l=E.days[d]||[];if(!l.length)return;let dt=0;
+    l.forEach(x=>{by[x.c]=(by[x.c]||0)+x.a;const m=menus[x.c]||(menus[x.c]={}),k=(x.n||"").trim();m[k]=(m[k]||0)+x.a;dt+=x.a;total+=x.a;n++});
+    rows.push({d,l,dt})});
+  return{ds,by,menus,rows,total,n,empty:ds.filter(d=>!(E.days[d]||[]).length)};
+}
+function renderDays(){
+  if(!E||!E.cats)return;
+  if(SCOPE==="pick"){const dim=dimE();let h=DOW.map(d=>`<div class="dow">${d}</div>`).join("")+'<div class="day empty"></div>'.repeat(new Date(E.Y,E.M,1).getDay());
+    for(let d=1;d<=dim;d++){const l=E.days[d]||[],t=l.reduce((a,x)=>a+x.a,0);h+=`<button class="day${SEL.has(d)?" sel":""}" data-p="${d}"><span>${d}</span>${l.length?`<span class="amt">${cp(t)}</span>`:""}</button>`}
+    $("epgrid").innerHTML=h}
+  const c=calcDays(),title=SCOPE==="month"?`ทั้งเดือน ${MN[E.M]} ${E.Y+543}`:`เลือก ${c.ds.length} วัน`;
+  if(SCOPE==="pick"&&!c.ds.length){$("eres").innerHTML='<p class="lbl" style="margin:0">แตะวันที่ด้านบนเพื่อเลือก (เลือกได้หลายวัน)</p>';return}
+  if(!c.rows.length){$("eres").innerHTML=`<h3>${title}</h3><p class="lbl" style="margin:0">ไม่มีรายการในช่วงนี้</p>`;return}
+  const ids=Object.keys(c.by).sort((a,b)=>c.by[b]-c.by[a]);
+  const mrows=id=>Object.entries(c.menus[id]||{}).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`<div class="row sub"><span class="lbl">${n?esc(n):"ไม่ระบุเมนู"}</span><span class="lbl">${fx(v)}</span></div>`).join("");
+  $("eres").innerHTML=`<div class="lbl">${title}</div><div class="total"><span>${fx(c.total)}</span><small>บาท</small></div>
+  <p class="lbl" style="margin:4px 0 8px">${c.n} รายการ ใน ${c.rows.length} วัน · เฉลี่ย ${fx(c.total/c.rows.length)} บาท/วัน${c.ds.length>c.rows.length&&SCOPE==="pick"?` · ไม่มีรายการ ${c.empty.length} วัน`:""}</p>
+  <h3 style="margin-top:14px">แยกประเภท</h3>${ids.map(id=>{const t=ecat(id);return `<div class="row"><span><span class="sw" style="background:${t.color}"></span>${esc(t.name)}</span><b>${fx(c.by[id])}</b></div>${mrows(id)}`}).join("")}
+  <h3 style="margin-top:14px">รายวัน</h3>${c.rows.map(r=>`<div class="row" style="font-weight:700"><span>${r.d} ${MN[E.M]}</span><span>${fx(r.dt)}</span></div>`+r.l.map(x=>{const t=ecat(x.c);return `<div class="row sub"><span><span class="sw" style="background:${t.color}"></span>${x.n?esc(x.n):'<span class="lbl">ไม่ระบุเมนู</span>'} <span class="lbl">${esc(t.name)}</span></span><span>${fx(x.a)}</span></div>`}).join("")).join("")}`;
+}
+$("escope").onclick=e=>{const b=e.target.closest("button");if(!b)return;SCOPE=b.dataset.s;
+  $("escope").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));$("epick").classList.toggle("hide",SCOPE!=="pick");renderDays()};
+$("epgrid").onclick=e=>{const b=e.target.closest("[data-p]");if(!b)return;const d=+b.dataset.p;SEL.has(d)?SEL.delete(d):SEL.add(d);renderDays()};
+$("pall").onclick=()=>{for(let d=1;d<=dimE();d++)SEL.add(d);renderDays()};
+$("pclr").onclick=()=>{SEL.clear();renderDays()};
+$("prange").onclick=()=>{const a=Math.max(1,+$("pf").value||0),b=Math.min(dimE(),+$("pt").value||+$("pf").value||0);if(!a||b<a)return;for(let d=a;d<=b;d++)SEL.add(d);renderDays()};
+$("edshare").onclick=()=>{const c=calcDays();if(!c.rows.length)return;
+  toLine(`ค่าใช้จ่าย ${SCOPE==="month"?`${MN[E.M]} ${E.Y+543}`:`เลือก ${c.ds.length} วัน (${MN[E.M]} ${E.Y+543})`}\nรวม ${fx(c.total)} บาท (${c.rows.length} วัน)\n\n`+c.rows.map(r=>`${r.d} ${MN[E.M]} — ${fx(r.dt)}\n`+r.l.map(x=>`  • ${ecat(x.c).name}${x.n?" "+x.n:""} ${fx(x.a)}`).join("\n")).join("\n"))};
 setInterval(()=>{if(MODE==="exp"&&E&&E.cats&&!ebusy&&!$("esheet").classList.contains("show")&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)},30000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&MODE==="exp"&&E&&E.cats&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)});
 // ---- สลับปฏิทินเวร / ค่าใช้จ่าย ----

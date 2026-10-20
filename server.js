@@ -127,21 +127,43 @@ function expData(u, Y, M) {
   const e = ex(u), m = expMonth(e, Y, M);
   return { Y, M, days: m.days, cats: e.cats, budget: e.budget || 0, sum: { total: m.total, n: m.n, by: m.by, menus: m.menus } };
 }
+function expBreakdown(e, by, menus) {
+  const L = Object.keys(by).map(id => [id, catOf(e, id).name, by[id]]).sort((a, b) => b[2] - a[2]);
+  const menuLines = id => { const ms = Object.entries(menus[id] || {}).sort((a, b) => b[1] - a[1]); return ms.slice(0, 8).map(([n, v]) => `   • ${n || "ไม่ระบุเมนู"} ${fmtx(v)}`).concat(ms.length > 8 ? [`   …อีก ${ms.length - 8} เมนู`] : []); };
+  return L.map(([id, n, v]) => [`${n}: ${fmtx(v)}`, ...menuLines(id)].join("\n")).join("\n");
+}
 function expSummary(u, Y, M) {
   const e = ex(u), m = expMonth(e, Y, M);
   if (!m.n) return `ยังไม่มีค่าใช้จ่าย ${MN[M]} ${Y + 543}\nพิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
-  const L = Object.keys(m.by).map(id => [id, catOf(e, id).name, m.by[id]]).sort((a, b) => b[2] - a[2]);
-  const menuLines = id => { const ms = Object.entries(m.menus[id] || {}).sort((a, b) => b[1] - a[1]); return ms.slice(0, 8).map(([n, v]) => `   • ${n || "ไม่ระบุเมนู"} ${fmtx(v)}`).concat(ms.length > 8 ? [`   …อีก ${ms.length - 8} เมนู`] : []); };
-  return `ค่าใช้จ่าย ${MN[M]} ${Y + 543}\n` + L.map(([id, n, v]) => [`${n}: ${fmtx(v)}`, ...menuLines(id)].join("\n")).join("\n") + `\nรวม ${fmtx(m.total)} บาท (${m.n} รายการ)`
+  return `ค่าใช้จ่าย ${MN[M]} ${Y + 543}\n` + expBreakdown(e, m.by, m.menus) + `\nรวม ${fmtx(m.total)} บาท (${m.n} รายการ)`
     + (e.budget ? `\nงบ ${fmtx(e.budget)} · ` + (m.total <= e.budget ? `เหลือ ${fmtx(e.budget - m.total)}` : `เกินงบ ${fmtx(m.total - e.budget)}`) : "");
 }
-function expList(u, Y, M) {
-  const e = ex(u), L = [];
-  for (let d = 1; d <= dim(Y, M); d++) {
-    const l = e.items[key(Y, M, d)];
-    if (l && l.length) L.push(`${d} ${MN[M]}\n` + l.map((x, i) => ` ${i + 1}. ${catOf(e, x.c).name}${x.n ? " " + x.n : ""} ${fmtx(x.a)}`).join("\n"));
+// รายการจ่ายรายวัน: ทั้งเดือน / วันเดียว / หลายวัน / ช่วงวัน แล้วสรุปรวมให้
+const BADDAY = "รูปแบบวันที่ไม่ถูกต้อง ตัวอย่าง: รายการจ่าย 16 / รายการจ่าย 16 18 20 / รายการจ่าย 16-20 / รายการจ่าย 16/11 / รายการจ่าย เดือน 9";
+function expRange(u, now, args) {
+  const e = ex(u), { Y, M } = bkk(now); let keys = [], head, m; args = (args || "").trim();
+  const whole = mo => { const k = []; for (let d = 1; d <= dim(Y, mo); d++) k.push(key(Y, mo, d)); return k; };
+  if (!args) { keys = whole(M); head = `${MN[M]} ${Y + 543} (ทั้งเดือน)`; }
+  else if ((m = args.match(/^เดือน\s*(\d{1,2})$/))) { const mo = +m[1] - 1; if (mo < 0 || mo > 11) return "เดือนต้องเป็น 1–12"; keys = whole(mo); head = `${MN[mo]} ${Y + 543} (ทั้งเดือน)`; }
+  else {
+    const set = new Set();
+    for (const tk of args.split(/[\s,]+/).filter(Boolean)) {
+      const x = tk.match(/^(\d{1,2})(?:-(\d{1,2}))?(?:\/(\d{1,2}))?$/); if (!x) return BADDAY;
+      const mo = x[3] ? +x[3] - 1 : M, a = +x[1], b = x[2] ? +x[2] : a;
+      if (mo < 0 || mo > 11 || a < 1 || b < a || b > dim(Y, mo)) return BADDAY;
+      for (let d = a; d <= b; d++) set.add(key(Y, mo, d));
+    }
+    keys = [...set].sort(); head = `เลือก ${keys.length} วัน`;
   }
-  return `รายการจ่าย ${MN[M]} ${Y + 543}\n` + (L.join("\n") || "ยังไม่มีรายการ พิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่");
+  const by = {}, menus = {}, rows = []; let total = 0, n = 0;
+  keys.forEach(k => {
+    const l = e.items[k]; if (!l || !l.length) return; let dt = 0;
+    l.forEach(x => { by[x.c] = (by[x.c] || 0) + x.a; const mm = menus[x.c] || (menus[x.c] = {}), nm = (x.n || "").trim(); mm[nm] = r2((mm[nm] || 0) + x.a); dt += x.a; total += x.a; n++; });
+    rows.push(`${fd(k)} — ${fmtx(dt)} บาท\n` + l.map((x, i) => ` ${i + 1}. ${catOf(e, x.c).name}${x.n ? " " + x.n : ""} ${fmtx(x.a)}`).join("\n"));
+  });
+  if (!rows.length) return `รายการจ่าย ${head}\nไม่มีรายการในช่วงนี้ พิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
+  return `รายการจ่าย ${head}\nรวม ${fmtx(total)} บาท (${n} รายการ ใน ${rows.length} วัน · เฉลี่ย ${fmtx(total / rows.length)}/วัน)` + (args && keys.length > rows.length ? `\n(ไม่มีรายการ ${keys.length - rows.length} วัน)` : "")
+    + `\n\nแยกประเภท\n${expBreakdown(e, by, menus)}\n\nรายวัน\n` + rows.join("\n");
 }
 function expAdd(u, text, now) {
   const e = ex(u), { Y, M, D: today } = bkk(now), ok = [], bad = [], made = [];
@@ -167,7 +189,7 @@ function expCmd(u, text, now) {
   const t = text.trim(), { Y, M } = bkk(now); let m;
   if ((m = t.match(/^จ่าย\s+([\s\S]+)$/))) return expAdd(u, m[1], now);
   if ((m = t.match(/^(?:สรุปจ่าย|สรุปค่าใช้จ่าย|ค่าใช้จ่าย)\s*(\d{1,2})?$/))) { const mo = m[1] ? +m[1] - 1 : M; return mo < 0 || mo > 11 ? "เดือนต้องเป็น 1–12" : expSummary(u, Y, mo); }
-  if (t === "รายการจ่าย") return expList(u, Y, M);
+  if ((m = t.match(/^(?:รายการจ่าย|สรุปวัน)(?:\s+(.+))?$/))) return expRange(u, now, m[1]);
   if ((m = t.match(/^ลบจ่าย\s+(\d{1,2}(?:\/\d{1,2})?)(?:\s+(\d+))?$/))) {
     const e = ex(u), k = dkey(m[1], now); if (!k) return "วันที่ไม่ถูกต้อง";
     const l = e.items[k] || []; if (!l.length) return `วันที่ ${fd(k)} ไม่มีรายการจ่าย`;
@@ -360,7 +382,8 @@ const HELP = `วิธีใช้
 • จ่าย 16 เช้า 40 ไข่กระทะ / จ่าย 16/11 เย็น 80 กะเพรา — ระบุวันที่ (หลายบรรทัดได้)
 • ประเภทเริ่มต้น: เช้า กลางวัน เย็น เครื่องดื่ม ของว่าง (เพิ่มเองได้ เช่น เพิ่มหมวด ค่าเดินทาง)
 • สรุปจ่าย  หรือ  สรุปจ่าย 9 — สรุปรายประเภท แยกรายเมนู
-• รายการจ่าย — ดูรายการทั้งเดือน
+• รายการจ่าย — ดูทั้งเดือน แยกรายวัน พร้อมสรุปรวม
+• รายการจ่าย 16 / 16 18 20 / 16-20 / 16/11 — ดูเฉพาะวันที่เลือก (วันเดียว หลายวัน หรือช่วง) แล้วสรุปให้ (เดือนอื่น: รายการจ่าย เดือน 9)
 • ลบจ่าย 16  หรือ  ลบจ่าย 16 2 (ลบรายการที่ 2 ของวันที่ 16)
 • หมวด / เพิ่มหมวด ชานม / ลบหมวด ชานม
 • งบ 15000 — ตั้งงบต่อเดือน

@@ -21,7 +21,7 @@ main{max-width:480px;margin:0 auto;padding:14px 14px 40px}button{font:inherit;co
 .day.today{border:2px solid var(--brand)}.day.empty{visibility:hidden}
 .tags{display:flex;flex-wrap:wrap;gap:2px;justify-content:center}.tg{font-size:10px;line-height:1;padding:2px 3px;border-radius:4px;font-weight:700}
 .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--mute)}
-.sheet{position:fixed;inset:0;background:rgba(10,8,30,.5);display:none;align-items:flex-end;justify-content:center}.sheet.show{display:flex}
+.sheet{position:fixed;inset:0;z-index:30;background:rgba(10,8,30,.5);display:none;align-items:flex-end;justify-content:center}.sheet.show{display:flex}
 .panel{background:var(--card);width:100%;max-width:480px;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
 .chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
 .chip{padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--bg);text-align:left;font-weight:500}
@@ -137,7 +137,7 @@ body{padding-bottom:96px}
 <div class="sheet" id="sheet"><div class="panel"><h3 id="st"></h3><div class="chips" id="chips"></div><button class="primary" id="done">เสร็จ</button></div></div>
 <div class="sheet" id="esheet"><div class="panel" style="max-height:88vh;overflow:auto"><h3 id="est"></h3><div id="elist"></div>
  <div class="add" style="margin-top:12px"><select id="ecat" style="flex:1;min-width:110px"></select><input type="number" id="eamt" inputmode="decimal" placeholder="บาท"></div>
- <div class="add"><input type="text" id="enote" placeholder="เมนู เช่น ข้าวมันไก่" maxlength="40"><button id="eadd">เพิ่ม</button></div>
+ <div class="add"><input type="text" id="enote" placeholder="เมนู เช่น ข้าวมันไก่" maxlength="40"><button id="exadd">เพิ่ม</button></div>
  <p class="lbl" id="emsg" style="color:#d33;margin:8px 0 0"></p>
  <button class="primary" id="edone" style="margin-top:12px">เสร็จ</button></div></div>
 <script>
@@ -333,7 +333,7 @@ function renderDay(){
 }
 async function eact(body,full){if(ebusy)return null;ebusy=true;const r=await ecall(body);ebusy=false;if(r){renderE();if(full)renderESet()}return r}
 $("egrid").onclick=e=>{const b=e.target.closest("[data-d]");if(!b)return;ecur=+b.dataset.d;$("est").textContent=`${ecur} ${MN[E.M]} ${E.Y+543}`;emsg("");renderDay();$("esheet").classList.add("show")};
-$("eadd").onclick=async()=>{if(await eact({op:"add",d:ecur,cat:$("ecat").value,amt:$("eamt").value,note:$("enote").value})){$("eamt").value=$("enote").value="";renderDay()}};
+$("exadd").onclick=async()=>{if(await eact({op:"add",d:ecur,cat:$("ecat").value,amt:$("eamt").value,note:$("enote").value})){$("eamt").value=$("enote").value="";renderDay()}};
 $("elist").onclick=async e=>{const z=e.target.closest("[data-z]");if(z){if(await eact({op:"zero",ds:[ecur],on:z.dataset.z==="1"}))renderDay();return}const b=e.target.closest("[data-ed]");if(b&&await eact({op:"del",d:ecur,id:b.dataset.ed}))renderDay()};
 $("edone").onclick=()=>$("esheet").classList.remove("show");
 $("esheet").onclick=e=>{if(e.target.id==="esheet")$("esheet").classList.remove("show")};

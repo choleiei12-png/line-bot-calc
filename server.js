@@ -38,7 +38,7 @@ const color = t => t.color || COL[t.id] || (t.kind === "o" ? "#17a589" : t.kind 
 const fmt = n => Math.round(n).toLocaleString("th-TH");
 const pad = n => String(n).padStart(2, "0");
 const alias = t => t.name.replace(/^เวร/, "") || t.name;
-const bkk = now => { const d = new Date(now.getTime() + 7 * 36e5); return { Y: d.getUTCFullYear(), M: d.getUTCMonth() }; };
+const bkk = now => { const d = new Date(now.getTime() + 7 * 36e5); return { Y: d.getUTCFullYear(), M: d.getUTCMonth(), D: d.getUTCDate() }; };
 const key = (Y, M, d) => `${Y}-${pad(M + 1)}-${pad(d)}`;
 const dim = (Y, M) => new Date(Y, M + 1, 0).getDate();
 const find = (u, n) => { n = n.toLowerCase(); return u.types.find(t => [t.name, alias(t), t.short].some(x => x.toLowerCase() === n)); };
@@ -71,6 +71,159 @@ function parseDays(u, text, Y, M) {
     if (ids.length) out[d] = ids;
   });
   return out;
+}
+// ===== ค่าใช้จ่าย (ปฏิทินค่าใช้จ่าย) =====
+const asking = new Map(); // id -> { t: เวลา, kind: "cal" | "sum", mo } ที่บอทถามว่าจะเลือกเวรหรือค่าใช้จ่าย (ไม่เก็บลงไฟล์)
+const ASKSUM = "จะสรุปอะไร?\n1. สรุปเวร\n2. สรุปค่าใช้จ่าย\n\nพิมพ์ 1 หรือ 2 (หรือพิมพ์ เวร / ค่าใช้จ่าย)";
+function shiftSummary(u, Y, mo) {
+  const c = calc(u, Y, mo);
+  return `สรุป ${MN[mo]} ${Y + 543}\nเวรปกติ ${c.ns} เวร: ${fmt(c.ms)}\nOT ${c.no} เวร: ${fmt(c.mo)}\nรายได้อื่น: ${fmt(c.oth)}\nวันหยุด ${c.nx} วัน\nรวม ${fmt(c.total)} บาท${c.exp ? `\nรายจ่าย ${fmt(c.exp)} บาท\nสุทธิ ${fmt(c.net)} บาท` : ""}`;
+}
+const ASK = "จะใช้ปฏิทินอะไร?\n1. ปฏิทินเวร\n2. ปฏิทินค่าใช้จ่าย\n\nพิมพ์ 1 หรือ 2 (หรือพิมพ์ชื่อปฏิทินก็ได้)";
+const C0 = () => [["b","อาหารเช้า","#f5b83d"],["l","อาหารกลางวัน","#ee8a4b"],["d","อาหารเย็น","#3b2fd8"],["k","เครื่องดื่ม","#17a589"],["s","ของว่าง","#e0457b"]].map(([id,name,color]) => ({id,name,color}));
+const ex = u => {
+  const e = u.exp || (u.exp = { cats: C0(), items: {}, budget: 0, v: 2 });
+  if (!e.v) { // ย้ายจากชุดหมวดรุ่นแรก (อาหาร/เดินทาง/ของใช้/ที่พัก/อื่นๆ) มาเป็นประเภทอาหาร
+    if (e.cats.length === 5 && ["f","t","g","h","o"].every((id, i) => e.cats[i].id === id)) {
+      e.cats = C0(); Object.keys(e.items).forEach(k => e.items[k].forEach(x => { x.c = x.c === "f" ? "l" : ""; }));
+    }
+    e.v = 2;
+  }
+  if (!e.zero) e.zero = {}; // วันที่ระบุว่าไม่มีค่าใช้จ่าย (ยอด 0)
+  return e;
+};
+const NOCAT = { id: "", name: "ไม่มีหมวด", color: "#9a97b3" };
+const catOf = (e, id) => e.cats.find(c => c.id === id) || NOCAT;
+const findCat = (e, n) => { n = n.toLowerCase(); return e.cats.find(c => { const x = c.name.toLowerCase(); return x === n || x.replace(/^อาหาร/, "") === n; }); }; // พิมพ์ "เช้า" ได้เท่ากับ "อาหารเช้า"
+const r2 = n => Math.round(n * 100) / 100;
+const fmtx = n => (+n).toLocaleString("th-TH", { maximumFractionDigits: 2 });
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const PAL = ["#e0457b","#17a589","#f5b83d","#3b2fd8","#ee8a4b","#8e44ad","#2e86c1","#7f8c8d"];
+function calReply(u, base, kind) {
+  const l = tok(u); save();
+  return (kind === "exp" ? "ปฏิทินค่าใช้จ่ายของคุณ\n" : "ปฏิทินเวรของคุณ\n") + `${base}/c/${l}${kind === "exp" ? "?v=exp" : ""}\n(ลิงก์ส่วนตัว ใครมีลิงก์ก็ดูและแก้ได้ อย่าแชร์)`;
+}
+function addCat(e, name, color) {
+  name = String(name || "").trim().slice(0, 20); if (!name) return { err: "ต้องใส่ชื่อหมวด" };
+  if (findCat(e, name)) return { err: "มีหมวดนี้แล้ว" };
+  if (e.cats.length >= 30) return { err: "มีหมวดได้สูงสุด 30 หมวด" };
+  const c = { id: "c" + newId(), name, color: /^#[0-9a-f]{6}$/i.test(color) ? color : PAL[e.cats.length % PAL.length] };
+  e.cats.push(c); return { ok: c };
+}
+function addExp(e, k, cat, amt, note) {
+  amt = Math.min(1e8, r2(+amt)); if (!(amt > 0)) return { err: "ต้องใส่จำนวนเงินมากกว่า 0" };
+  const list = e.items[k] || (e.items[k] = []);
+  if (list.length >= 100) return { err: "วันนี้มีรายการเยอะเกินไป (สูงสุด 100)" };
+  list.push({ i: newId(), c: cat, a: amt, n: String(note || "").trim().slice(0, 40) });
+  if (e.zero) delete e.zero[k];
+  return { ok: true };
+}
+function expMonth(e, Y, M) {
+  const by = {}, days = {}, menus = {}, zero = []; let total = 0, n = 0;
+  for (let d = 1; d <= dim(Y, M); d++) {
+    const k = key(Y, M, d), l = e.items[k]; if (!l || !l.length) { if (e.zero && e.zero[k]) zero.push(d); continue; }
+    days[d] = l; l.forEach(x => { by[x.c] = (by[x.c] || 0) + x.a; const mm = menus[x.c] || (menus[x.c] = {}), nm = (x.n || "").trim(); mm[nm] = r2((mm[nm] || 0) + x.a); total += x.a; n++; });
+  }
+  return { days, by, menus, zero, total: r2(total), n };
+}
+function expData(u, Y, M) {
+  const e = ex(u), m = expMonth(e, Y, M);
+  return { Y, M, days: m.days, zero: m.zero, cats: e.cats, budget: e.budget || 0, sum: { total: m.total, n: m.n, by: m.by, menus: m.menus } };
+}
+function expBreakdown(e, by, menus) {
+  const L = Object.keys(by).map(id => [id, catOf(e, id).name, by[id]]).sort((a, b) => b[2] - a[2]);
+  const menuLines = id => { const ms = Object.entries(menus[id] || {}).sort((a, b) => b[1] - a[1]); return ms.slice(0, 8).map(([n, v]) => `   • ${n || "ไม่ระบุเมนู"} ${fmtx(v)}`).concat(ms.length > 8 ? [`   …อีก ${ms.length - 8} เมนู`] : []); };
+  return L.map(([id, n, v]) => [`${n}: ${fmtx(v)}`, ...menuLines(id)].join("\n")).join("\n");
+}
+function expSummary(u, Y, M) {
+  const e = ex(u), m = expMonth(e, Y, M);
+  if (!m.n) return `ยังไม่มีค่าใช้จ่าย ${MN[M]} ${Y + 543}\nพิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
+  return `ค่าใช้จ่าย ${MN[M]} ${Y + 543}\n` + expBreakdown(e, m.by, m.menus) + `\nรวม ${fmtx(m.total)} บาท (${m.n} รายการ)`
+    + (e.budget ? `\nงบ ${fmtx(e.budget)} · ` + (m.total <= e.budget ? `เหลือ ${fmtx(e.budget - m.total)}` : `เกินงบ ${fmtx(m.total - e.budget)}`) : "");
+}
+// รายการจ่ายรายวัน: ทั้งเดือน / วันเดียว / หลายวัน / ช่วงวัน แล้วสรุปรวมให้
+const BADDAY = "รูปแบบวันที่ไม่ถูกต้อง ตัวอย่าง: รายการจ่าย 16 / รายการจ่าย 16 18 20 / รายการจ่าย 16-20 / รายการจ่าย 16/11 / รายการจ่าย เดือน 9";
+function parseDayArgs(args, Y, M) { // 16 | 16 18 20 | 16-20 | 16/11 | 16-20/11
+  const set = new Set();
+  for (const tk of args.split(/[\s,]+/).filter(Boolean)) {
+    const x = tk.match(/^(\d{1,2})(?:-(\d{1,2}))?(?:\/(\d{1,2}))?$/); if (!x) return null;
+    const mo = x[3] ? +x[3] - 1 : M, a = +x[1], b = x[2] ? +x[2] : a;
+    if (mo < 0 || mo > 11 || a < 1 || b < a || b > dim(Y, mo)) return null;
+    for (let d = a; d <= b; d++) set.add(key(Y, mo, d));
+  }
+  return set.size ? [...set].sort() : null;
+}
+function expRange(u, now, args) {
+  const e = ex(u), { Y, M } = bkk(now); let keys = [], head, m; args = (args || "").trim();
+  const whole = mo => { const k = []; for (let d = 1; d <= dim(Y, mo); d++) k.push(key(Y, mo, d)); return k; };
+  if (!args) { keys = whole(M); head = `${MN[M]} ${Y + 543} (ทั้งเดือน)`; }
+  else if ((m = args.match(/^เดือน\s*(\d{1,2})$/))) { const mo = +m[1] - 1; if (mo < 0 || mo > 11) return "เดือนต้องเป็น 1–12"; keys = whole(mo); head = `${MN[mo]} ${Y + 543} (ทั้งเดือน)`; }
+  else { keys = parseDayArgs(args, Y, M); if (!keys) return BADDAY; head = `เลือก ${keys.length} วัน`; }
+  const by = {}, menus = {}, rows = []; let total = 0, n = 0;
+  keys.forEach(k => {
+    const l = e.items[k]; if (!l || !l.length) { if (e.zero[k]) rows.push(`${fd(k)} — 0 บาท (ไม่มีค่าใช้จ่าย)`); return; } let dt = 0;
+    l.forEach(x => { by[x.c] = (by[x.c] || 0) + x.a; const mm = menus[x.c] || (menus[x.c] = {}), nm = (x.n || "").trim(); mm[nm] = r2((mm[nm] || 0) + x.a); dt += x.a; total += x.a; n++; });
+    rows.push(`${fd(k)} — ${fmtx(dt)} บาท\n` + l.map((x, i) => ` ${i + 1}. ${catOf(e, x.c).name}${x.n ? " " + x.n : ""} ${fmtx(x.a)}`).join("\n"));
+  });
+  if (!rows.length) return `รายการจ่าย ${head}\nไม่มีรายการในช่วงนี้ พิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
+  return `รายการจ่าย ${head}\nรวม ${fmtx(total)} บาท (${n} รายการ ใน ${rows.length} วัน · เฉลี่ย ${fmtx(total / rows.length)}/วัน)` + (args && keys.length > rows.length ? `\n(ไม่มีรายการ ${keys.length - rows.length} วัน)` : "")
+    + "\n\n" + rows.join("\n");
+}
+function expAdd(u, text, now) {
+  const e = ex(u), { Y, M, D: today } = bkk(now), ok = [], bad = [], made = [];
+  text.split("\n").forEach(raw => {
+    const line = raw.trim().replace(/^จ่าย\s+/, ""); if (!line) return;
+    const m = line.match(/^(?:(\d{1,2}(?:\/\d{1,2})?)\s+)?(\S+)\s+(\d[\d,]*(?:\.\d{1,2})?)(?:\s+(.+))?$/);
+    if (!m) { bad.push(`${line} (รูปแบบไม่ถูกต้อง)`); return; }
+    const k = m[1] ? dkey(m[1], now) : key(Y, M, today); if (!k) { bad.push(`${line} (วันที่ไม่ถูกต้อง)`); return; }
+    if (!(r2(+m[3].replace(/,/g, "")) > 0)) { bad.push(`${line} (ต้องใส่จำนวนเงินมากกว่า 0)`); return; }
+    let c = findCat(e, m[2]);
+    if (!c) { const r = addCat(e, m[2]); if (r.err) { bad.push(`${line} (${r.err})`); return; } c = r.ok; made.push(c.name); }
+    const amt = +m[3].replace(/,/g, ""), note = (m[4] || "").trim().slice(0, 40), r = addExp(e, k, c.id, amt, note);
+    if (r.err) { bad.push(`${line} (${r.err})`); return; }
+    ok.push(`${fd(k)} ${c.name}${note ? " " + note : ""} ${fmtx(amt)}`);
+  });
+  save();
+  if (!ok.length) return "บันทึกไม่ได้\n" + bad.join("\n") + "\n\nตัวอย่าง: จ่าย กลางวัน 60 ข้าวมันไก่ หรือ จ่าย 16 เช้า 40 ไข่กระทะ";
+  const mm = expMonth(e, Y, M);
+  return `บันทึกค่าใช้จ่าย ${ok.length} รายการ\n` + ok.join("\n") + (made.length ? `\n(สร้างประเภทใหม่: ${made.join(", ")})` : "")
+    + (bad.length ? "\n\nบันทึกไม่ได้:\n" + bad.join("\n") : "") + `\n\nรวม${MN[M]} ${fmtx(mm.total)} บาท` + (e.budget ? ` (งบ${mm.total <= e.budget ? "เหลือ " + fmtx(e.budget - mm.total) : "เกิน " + fmtx(mm.total - e.budget)})` : "");
+}
+function expCmd(u, text, now) {
+  const t = text.trim(), { Y, M } = bkk(now); let m;
+  if ((m = t.match(/^จ่าย\s+([\s\S]+)$/))) return expAdd(u, m[1], now);
+  if ((m = t.match(/^(?:ไม่จ่าย|ไม่มีค่าใช้จ่าย)(?:\s+(.+))?$/))) {
+    const e = ex(u), keys = m[1] ? parseDayArgs(m[1].trim(), Y, M) : [key(Y, M, bkk(now).D)];
+    if (!keys) return "รูปแบบวันที่ไม่ถูกต้อง ตัวอย่าง: ไม่จ่าย / ไม่จ่าย 16 / ไม่จ่าย 16-18 / ไม่จ่าย 16/11";
+    const ok = [], skip = [];
+    keys.forEach(k => { if ((e.items[k] || []).length) skip.push(k); else { e.zero[k] = 1; ok.push(k); } });
+    if (ok.length) save();
+    const L = a => a.length <= 5 ? a.map(fd).join(", ") : `${a.length} วัน`;
+    return (ok.length ? `บันทึก "ไม่มีค่าใช้จ่าย" (ยอด 0 บาท) ${L(ok)}` : "ไม่ได้บันทึก") + (skip.length ? `\n${L(skip)} มีรายการจ่ายอยู่แล้ว (ถ้าจะล้างให้พิมพ์ ลบจ่าย วันที่)` : "");
+  }
+  if ((m = t.match(/^(?:สรุปจ่าย|สรุปค่าใช้จ่าย|ค่าใช้จ่าย)\s*(\d{1,2})?$/))) { const mo = m[1] ? +m[1] - 1 : M; return mo < 0 || mo > 11 ? "เดือนต้องเป็น 1–12" : expSummary(u, Y, mo); }
+  if ((m = t.match(/^(?:รายการจ่าย|สรุปวัน)(?:\s+(.+))?$/))) return expRange(u, now, m[1]);
+  if ((m = t.match(/^ลบจ่าย\s+(\d{1,2}(?:\/\d{1,2})?)(?:\s+(\d+))?$/))) {
+    const e = ex(u), k = dkey(m[1], now); if (!k) return "วันที่ไม่ถูกต้อง";
+    const l = e.items[k] || [];
+    if (!l.length) { if (e.zero[k] && !m[2]) { delete e.zero[k]; save(); return `ยกเลิก "ไม่มีค่าใช้จ่าย" ของวันที่ ${fd(k)} แล้ว`; } return `วันที่ ${fd(k)} ไม่มีรายการจ่าย`; }
+    if (m[2]) {
+      const i = +m[2] - 1; if (!l[i]) return `ไม่พบรายการที่ ${m[2]} ของวันที่ ${fd(k)} (มี ${l.length} รายการ)`;
+      const x = l.splice(i, 1)[0]; if (!l.length) delete e.items[k]; save(); return `ลบ ${catOf(e, x.c).name} ${fmtx(x.a)} ของวันที่ ${fd(k)} แล้ว`;
+    }
+    delete e.items[k]; save(); return `ล้างรายการจ่ายวันที่ ${fd(k)} แล้ว (${l.length} รายการ)`;
+  }
+  if (/^(หมวด|ประเภท)$/.test(t)) return "ประเภทที่มี\n" + ex(u).cats.map(c => c.name).join(", ") + "\n\nเพิ่ม: เพิ่มหมวด ชานม / ลบ: ลบหมวด ชานม";
+  if ((m = t.match(/^เพิ่ม(?:หมวด|ประเภท)\s+(.+)$/))) { const r = addCat(ex(u), m[1]); if (r.err) return r.err; save(); return `เพิ่มประเภท "${r.ok.name}" แล้ว`; }
+  if ((m = t.match(/^ลบ(?:หมวด|ประเภท)\s+(.+)$/))) {
+    const e = ex(u), c = findCat(e, m[1].trim()); if (!c) return `ไม่พบประเภท "${m[1].trim()}"`;
+    e.cats = e.cats.filter(x => x !== c); save(); return `ลบประเภท ${c.name} แล้ว (รายการเดิมจะกลายเป็น "ไม่มีหมวด")`;
+  }
+  if ((m = t.match(/^งบ(?:\s+([\d,]+))?$/))) {
+    const e = ex(u); if (m[1] === undefined) return e.budget ? `งบต่อเดือน ${fmtx(e.budget)} บาท` : "ยังไม่ได้ตั้งงบ พิมพ์ เช่น งบ 15000";
+    e.budget = Math.min(1e8, +m[1].replace(/,/g, "")); save(); return e.budget ? `ตั้งงบต่อเดือน ${fmtx(e.budget)} บาท แล้ว` : "ยกเลิกงบแล้ว";
+  }
+  return null;
 }
 // ===== ทีม / ดูตารางกัน / แลกเวร =====
 const outbox = [];
@@ -228,8 +381,8 @@ async function push(to, text) {
 }
 const HELP = `วิธีใช้
 • ลงเวร: พิมพ์ 16 เช้า / 17 บ่าย ดึก / 18 OT เช้า / 19 OFF (หลายบรรทัดได้)
-• สรุป  หรือ  สรุป 9 (เดือนที่ 9)
-• ตาราง — ดูเวรเดือนนี้\n• ปฏิทิน — ขอลิงก์ปฏิทิน (ดู/แก้เวรบนเว็บได้ ข้อมูลตรงกับแชท)\n• ลิงก์ใหม่ — เปลี่ยนลิงก์ปฏิทิน
+• สรุป  หรือ  สรุป 9 — บอทจะถามว่าจะสรุป เวร หรือ ค่าใช้จ่าย (พิมพ์ สรุปเวร / สรุปจ่าย เพื่อข้ามคำถาม)
+• ตาราง — ดูเวรเดือนนี้\n• ปฏิทิน — ขอลิงก์ปฏิทิน (บอทจะถามว่าจะใช้ ปฏิทินเวร หรือ ปฏิทินค่าใช้จ่าย)\n• ลิงก์ใหม่ — เปลี่ยนลิงก์ปฏิทิน
 • ลบ 16 — ล้างเวรวันที่ 16
 • ตั้งค่า — ดูค่าเวร
 • ตั้งค่า เช้า 850 — แก้ค่าเวร
@@ -238,6 +391,18 @@ const HELP = `วิธีใช้
 • รายได้อื่น เงินเดือน 15000
 • ลบรายได้อื่น เงินเดือน
 • รายจ่าย ค่าเช่า 5000 / ลบรายจ่าย ค่าเช่า
+
+ค่าอาหาร / ค่าใช้จ่าย (แยกตามประเภทและเมนู)
+• จ่าย กลางวัน 60 ข้าวมันไก่ — รูปแบบ: ประเภท จำนวนเงิน เมนู (เมนูใส่หรือไม่ก็ได้) บันทึกของวันนี้
+• จ่าย 16 เช้า 40 ไข่กระทะ / จ่าย 16/11 เย็น 80 กะเพรา — ระบุวันที่ (หลายบรรทัดได้)
+• ไม่จ่าย / ไม่จ่าย 16 / ไม่จ่าย 16-18 — ระบุว่าวันนั้นไม่มีค่าใช้จ่าย (ยอด 0) ยกเลิกด้วย ลบจ่าย 16
+• ประเภทเริ่มต้น: เช้า กลางวัน เย็น เครื่องดื่ม ของว่าง (เพิ่มเองได้ เช่น เพิ่มหมวด ค่าเดินทาง)
+• สรุปจ่าย  หรือ  สรุปจ่าย 9 — สรุปรายประเภท แยกรายเมนู
+• รายการจ่าย — ดูทั้งเดือน แยกเป็นรายวัน พร้อมยอดรวม
+• รายการจ่าย 16 / 16 18 20 / 16-20 / 16/11 — ดูเฉพาะวันที่เลือก (วันเดียว หลายวัน หรือช่วง) แล้วสรุปให้ (เดือนอื่น: รายการจ่าย เดือน 9)
+• ลบจ่าย 16  หรือ  ลบจ่าย 16 2 (ลบรายการที่ 2 ของวันที่ 16)
+• หมวด / เพิ่มหมวด ชานม / ลบหมวด ชานม
+• งบ 15000 — ตั้งงบต่อเดือน
 
 ทีม / แลกเวร
 • สร้างทีม ตึก5 — แล้วส่งรหัสทีมเข้ากลุ่มให้เพื่อน
@@ -252,15 +417,29 @@ const HELP = `วิธีใช้
 function handle(id, text, now = new Date(), base = "") {
   const u = user(id), t = text.trim(), { Y, M } = bkk(now); let m;
   if (/^(ช่วยเหลือ|help|เมนู)$/i.test(t)) return HELP;
-  if ((m = t.match(/^สรุป\s*(\d{1,2})?$/))) {
-    const mo = m[1] ? +m[1] - 1 : M; if (mo < 0 || mo > 11) return "เดือนต้องเป็น 1–12";
-    const c = calc(u, Y, mo);
-    return `สรุป ${MN[mo]} ${Y + 543}\nเวรปกติ ${c.ns} เวร: ${fmt(c.ms)}\nOT ${c.no} เวร: ${fmt(c.mo)}\nรายได้อื่น: ${fmt(c.oth)}\nวันหยุด ${c.nx} วัน\nรวม ${fmt(c.total)} บาท${c.exp ? `\nรายจ่าย ${fmt(c.exp)} บาท\nสุทธิ ${fmt(c.net)} บาท` : ""}`;
+  const ak = asking.get(id);
+  if (ak) {
+    asking.delete(id);
+    if (Date.now() - ak.t < 10 * 6e4) {
+      const isShift = /^(1|เวร|ปฏิทินเวร|สรุปเวร)$/.test(t), isExp = /^(2|ค่าใช้จ่าย|จ่าย|อาหาร|ปฏิทินค่าใช้จ่าย|ปฏิทินจ่าย|สรุปค่าใช้จ่าย|สรุปจ่าย)$/.test(t);
+      if (isShift || isExp) {
+        if (ak.kind === "sum") return isExp ? expSummary(u, Y, ak.mo) : shiftSummary(u, Y, ak.mo);
+        return calReply(u, base, isExp ? "exp" : "shift");
+      }
+    }
+  }
+  if ((m = t.match(/^สรุป(เวร)?\s*(\d{1,2})?$/))) {
+    const mo = m[2] ? +m[2] - 1 : M; if (mo < 0 || mo > 11) return "เดือนต้องเป็น 1–12";
+    if (m[1]) return shiftSummary(u, Y, mo);
+    asking.set(id, { t: Date.now(), kind: "sum", mo }); return ASKSUM;
   }
   if (t === "ปฏิทิน" || t === "ลิงก์ใหม่") {
-    if (t === "ลิงก์ใหม่") u.token = null; const l = tok(u); save();
-    return (t === "ลิงก์ใหม่" ? "สร้างลิงก์ใหม่แล้ว (ลิงก์เก่าใช้ไม่ได้)\n" : "ปฏิทินเวรของคุณ\n") + `${base}/c/${l}\n(ลิงก์ส่วนตัว ใครมีลิงก์ก็ดูและแก้ได้ อย่าแชร์)`;
+    const fresh = t === "ลิงก์ใหม่"; if (fresh) { u.token = null; tok(u); save(); }
+    asking.set(id, { t: Date.now(), kind: "cal" });
+    return (fresh ? "สร้างลิงก์ใหม่แล้ว (ลิงก์เก่าใช้ไม่ได้)\n\n" : "") + ASK;
   }
+  if (t === "ปฏิทินเวร") return calReply(u, base, "shift");
+  if (/^ปฏิทิน(ค่าใช้จ่าย|จ่าย)$/.test(t)) return calReply(u, base, "exp");
   if (t === "ตาราง") {
     const L = []; for (let d = 1; d <= dim(Y, M); d++) { const a = (u.days[key(Y, M, d)] || []).map(i => u.types.find(x => x.id === i)).filter(Boolean); if (a.length) L.push(d + " " + a.map(alias).join(" ")); }
     return `ตารางเวร ${MN[M]} ${Y + 543}\n` + (L.join("\n") || "ยังไม่มีเวร พิมพ์เช่น 16 เช้า");
@@ -283,6 +462,7 @@ function handle(id, text, now = new Date(), base = "") {
   if ((m = t.match(/^ลบรายจ่าย\s+(\S+)$/))) { u.expense = (u.expense || []).filter(x => x.name !== m[1]); save(); return `ลบรายจ่าย ${m[1]} แล้ว`; }
   if ((m = t.match(/^ลบรายได้อื่น\s+(\S+)$/))) { u.other = u.other.filter(x => x.name !== m[1]); save(); return `ลบ ${m[1]} แล้ว`; }
   if ((m = t.match(/^ชื่อ\s+(.+)$/))) { const r = rename(u, id, m[1]); return r.err || r.ok; }
+  const xr = expCmd(u, text, now); if (xr) return xr;
   const g = teamCmd(u, id, t, now); if (g) return g;
   const r = parseDays(u, text, Y, M), ds = Object.keys(r);
   if (!ds.length) return "ไม่เข้าใจข้อความ ลองพิมพ์ เช่น 16 เช้า หรือพิมพ์ ช่วยเหลือ";
@@ -308,6 +488,11 @@ function api(req, res, t, act, url) {
   if (act === "team" && req.method === "GET") {
     const q = url.searchParams, Y = q.has("y") ? +q.get("y") : now.Y, M = q.has("m") ? +q.get("m") : now.M;
     return send(200, teamData(u, Y, M >= 0 && M <= 11 ? M : now.M));
+  }
+  if (act === "exp" && req.method === "GET") {
+    const q = url.searchParams, Y = q.has("y") ? +q.get("y") : now.Y, M = q.has("m") ? +q.get("m") : now.M;
+    if (!(M >= 0 && M <= 11) || !Number.isInteger(Y)) return send(400, { error: "bad month" });
+    return send(200, expData(u, Y, M));
   }
   if (req.method !== "POST") return send(405, { error: "method" });
   const chunks = []; let n = 0;
@@ -361,6 +546,35 @@ function api(req, res, t, act, url) {
         ds.forEach(d => { u.days[key(Y, M, d)] = r[d]; });
         return done({ imported: ds.length });
       }
+      if (act === "exp") {
+        const x = ex(u);
+        if (b.op === "add") {
+          const d = +b.d; if (!(d >= 1 && d <= dim(Y, M))) return send(400, { error: "bad date" });
+          if (!x.cats.some(c => c.id === b.cat)) return send(400, { error: "เลือกหมวดก่อน" });
+          const r = addExp(x, key(Y, M, d), b.cat, b.amt, str(b.note, 40)); if (r.err) return send(400, { error: r.err });
+        } else if (b.op === "del") {
+          const k = key(Y, M, +b.d), l = (x.items[k] || []).filter(i => i.i !== b.id); if (l.length) x.items[k] = l; else delete x.items[k];
+        } else if (b.op === "catadd") {
+          const r = addCat(x, str(b.name, 20), b.color); if (r.err) return send(400, { error: r.err });
+        } else if (b.op === "catupd") {
+          const c = x.cats.find(i => i.id === b.id); if (!c) return send(404, { error: "ไม่พบหมวด" });
+          if (b.name !== undefined) {
+            const nm = str(b.name, 20); if (!nm) return send(400, { error: "ต้องใส่ชื่อหมวด" });
+            if (x.cats.some(i => i !== c && i.name.toLowerCase() === nm.toLowerCase())) return send(409, { error: "มีหมวดนี้แล้ว" });
+            c.name = nm;
+          }
+          if (okc(b.color)) c.color = b.color;
+        } else if (b.op === "zero") {
+          const ds = (Array.isArray(b.ds) ? b.ds : [b.d]).map(Number).filter(d => d >= 1 && d <= dim(Y, M)).slice(0, 31);
+          if (!ds.length) return send(400, { error: "bad date" });
+          let set = 0;
+          ds.forEach(d => { const k = key(Y, M, d); if (!b.on) delete x.zero[k]; else if (!(x.items[k] || []).length) { x.zero[k] = 1; set++; } });
+          if (b.on && !set) return send(400, { error: "วันที่เลือกมีรายการค่าใช้จ่ายอยู่แล้ว" });
+        } else if (b.op === "catdel") x.cats = x.cats.filter(i => i.id !== b.id);
+        else if (b.op === "budget") x.budget = Math.min(1e8, Math.max(0, r2(+b.amt || 0)));
+        else return send(400, { error: "bad op" });
+        save(); return send(200, expData(u, Y, M));
+      }
       if (act === "team" || act === "swap") {
         const id = idOf(u); let r;
         if (act === "team") r = b.op === "create" ? createTeam(u, id, str(b.name, 30)) : b.op === "join" ? joinTeam(u, id, str(b.code, 12)) : b.op === "leave" ? leaveTeam(u, id) : b.op === "name" ? rename(u, id, str(b.name, 20)) : { err: "bad op" };
@@ -386,7 +600,7 @@ if (require.main === module) {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
       res.end(fs.readFileSync(__dirname + "/calendar.html")); return;
     }
-    if ((m = url.pathname.match(/^\/api\/(\w+)\/(month|day|type|other|import|team|swap)$/))) { api(req, res, m[1], m[2], url); return; }
+    if ((m = url.pathname.match(/^\/api\/(\w+)\/(month|day|type|other|import|team|swap|exp)$/))) { api(req, res, m[1], m[2], url); return; }
     if (req.method !== "POST") { res.end("shift bot ok"); return; }
     const chunks = []; req.on("data", c => chunks.push(c)); req.on("end", () => {
       const raw = Buffer.concat(chunks);

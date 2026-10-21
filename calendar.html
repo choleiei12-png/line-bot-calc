@@ -74,6 +74,8 @@ body{padding-bottom:96px}
 .cmp .day{min-height:56px;align-items:center}
 .ch.z{background:var(--soft);color:var(--mute)}
 .tabs.modes{margin:0 0 12px}
+body.so .bnav{display:none}
+.panel{max-height:90vh;overflow-y:auto}
 </style></head><body><main>
 <div class="hero"><div class="hi" id="hicon">📅</div><div><b id="htitle">ตารางเวรพยาบาล</b><span id="hello">ยินดีต้อนรับสู่ตารางเวร</span></div></div>
 <div class="two"><button class="btn w" id="refresh">↻ รีเฟรชข้อมูล</button><button class="btn b" id="shareTop">💬 ส่งสรุปเข้า LINE</button></div>
@@ -130,6 +132,7 @@ body{padding-bottom:96px}
   <div class="add"><input type="number" id="eb" inputmode="decimal" placeholder="บาท"><button id="ebs">บันทึก</button></div></div>
 </section>
 </div>
+<p class="lbl" style="text-align:center;margin:18px 0 0">เวอร์ชันหน้าเว็บ 21 ต.ค. 2569 (แก้ปุ่มเพิ่ม/ปุ่มถูกบัง)</p>
 </main>
 <nav class="bnav" id="snav"><div><button class="on" data-t="dash"><span>🏠</span>ภาพรวม</button><button data-t="cal"><span>📅</span>ตารางเวร</button><button data-t="team"><span>👥</span>ทีม</button><button data-t="rep"><span>📊</span>รายงาน</button><button data-t="line"><span>💬</span>LINE</button><button data-t="set"><span>⚙️</span>ตั้งค่า</button></div></nav>
 <nav class="bnav hide" id="enav"><div><button class="on" data-t="edash"><span>🏠</span>ภาพรวม</button><button data-t="ecal"><span>📅</span>ปฏิทิน</button><button data-t="eday"><span>🧾</span>รายวัน</button><button data-t="eset"><span>⚙️</span>ตั้งค่า</button></div></nav>
@@ -283,7 +286,7 @@ $("tbody").onclick=async e=>{
 let E=null,MODE="shift",ecur=null,ebusy=false;
 const DOW=["อา","จ","อ","พ","พฤ","ศ","ส"],fx=n=>(+n).toLocaleString("th-TH",{maximumFractionDigits:2}),cp=n=>n>=10000?(Math.round(n/100)/10)+"k":fx(n);
 const NOC={id:"",name:"ไม่มีหมวด",color:"#9a97b3"},ecat=id=>(E&&E.cats&&E.cats.find(c=>c.id===id))||NOC;
-const EEMO={b:"🍳",l:"🍱",d:"🍲",k:"🥤",s:"🍪"};
+const EEMO={b:"🍳",l:"🍱",d:"🍲",k:"🥤",s:"🍪",o:"🧾"};
 const emsg=m=>{$("emsg").textContent=m||""};
 const dimE=()=>new Date(E.Y,E.M+1,0).getDate(),ZD=d=>!!(E.zero&&E.zero.includes(d));
 async function ecall(body){
@@ -394,5 +397,8 @@ function setMode(m){
   scrollTo(0,0);
 }
 $("modes").onclick=e=>{const b=e.target.closest("button");if(b&&b.dataset.m!==MODE)setMode(b.dataset.m)};
+// ซ่อนเมนูล่างระหว่างเปิดหน้าต่างด้านล่าง กันเมนูบังปุ่ม
+const syncSheet=()=>document.body.classList.toggle("so",!!document.querySelector(".sheet.show"));
+document.querySelectorAll(".sheet").forEach(s=>new MutationObserver(syncSheet).observe(s,{attributes:true,attributeFilter:["class"]}));
 setMode(new URLSearchParams(location.search).get("v")==="exp"?"exp":"shift");
 </script></body></html>

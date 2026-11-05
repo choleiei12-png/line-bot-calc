@@ -76,6 +76,8 @@ body{padding-bottom:96px}
 .tabs.modes{margin:0 0 12px}
 body.so .bnav{display:none}
 .panel{max-height:90vh;overflow-y:auto}
+.warn{grid-column:1/-1;background:#fdecec;color:#b42318;border:1px solid #f5b5b0;border-radius:16px;padding:12px 14px;font-weight:700}
+@media (prefers-color-scheme:dark){.warn{background:#3a1717;color:#ffb4ab;border-color:#6b2a2a}}
 </style></head><body><main>
 <div class="hero"><div class="hi" id="hicon">📅</div><div><b id="htitle">ตารางเวรพยาบาล</b><span id="hello">ยินดีต้อนรับสู่ตารางเวร</span></div></div>
 <div class="two"><button class="btn w" id="refresh">↻ รีเฟรชข้อมูล</button><button class="btn b" id="shareTop">💬 ส่งสรุปเข้า LINE</button></div>
@@ -164,25 +166,30 @@ async function load(y,m){
 }
 const hid=(()=>{try{return new Set(JSON.parse(localStorage.getItem("hid")||"[]"))}catch(e){return new Set()}})();
 const EMO={m:"☀️",a:"🌇",n:"🌙",x:"🛌"};
+const btxt=(b,spent)=>b?(spent>b?`⚠ เกินงบ ${fx(spent-b)} บาท (งบ ${fx(b)})`:`งบ ${fx(b)} บาท · ยอดคงเหลือ ${fx(b-spent)} บาท`):"";
 function cards(){
   const s=D.sum,bt=s.bt||{},L=[];
-  L.push({id:"net",big:1,ic:"💎",c:"#ffffff",l:"ยอดสุทธิเดือนนี้",v:"฿"+fmt(s.net),sub:`รายได้ ฿${fmt(s.total)} · รายจ่าย ฿${fmt(s.exp)}`});
+  L.push({id:"net",big:1,ic:"💎",c:"#ffffff",l:"ยอดคงเหลือเดือนนี้",v:"฿"+fmt(s.left),sub:`รายได้ ฿${fmt(s.total)} · ค่าใช้จ่าย ฿${fmt(s.spent)}`});
   L.push({id:"inc",ic:"💳",c:"#0b6aa2",l:"รายได้รวมทั้งหมด",v:"฿"+fmt(s.total)});
-  L.push({id:"exp",ic:"👛",c:"#e5484d",l:"รายจ่ายทั้งหมด",v:"฿"+fmt(s.exp)});
+  L.push({id:"exp",ic:"👛",c:"#e5484d",l:"รายจ่ายทั้งหมด",v:"฿"+fmt(s.spent),sub:s.cal?`ประจำ ฿${fmt(s.exp)} · ปฏิทิน ฿${fmt(s.cal)}`:""});
+  if(s.budget)L.push({id:"bud",ic:"🎯",c:s.over?"#e5484d":"#17a589",l:s.over?"เกินงบ":"ยอดคงเหลือ (งบ)",v:"฿"+fmt(Math.abs(s.bleft)),sub:`งบ ฿${fmt(s.budget)} · ใช้ไป ฿${fmt(s.cal)}`});
   L.push({id:"oth",ic:"🏦",c:"#64748b",l:"เงินเดือน/รายได้อื่น",v:"฿"+fmt(s.oth)});
   L.push({id:"ot",ic:"⏱️",c:"#c026d3",l:"OT รวม",v:"฿"+fmt(s.mo),sub:`${s.no} เวร`});
   D.types.filter(t=>t.kind!=="o").forEach(t=>{const b=bt[t.id]||{n:0,amt:0},x=t.kind==="x";L.push({id:"t"+t.id,ic:EMO[t.id]||"🩺",c:t.color,l:t.name,v:x?`${b.n} วัน`:"฿"+fmt(b.amt),sub:x?"":`${b.n} เวร`})});
   L.push({id:"cnt",ic:"📋",c:"#f59e0b",l:"จำนวนเวรทั้งหมด",v:String(s.ns+s.no)});
   return L;
 }
-function renderDash(){$("stats").innerHTML=cards().filter(c=>!hid.has(c.id)).map(c=>`<div class="st${c.big?" big":""}"><div class="ic" style="background:${c.c}33">${c.ic}</div><div><small>${esc(c.l)}</small><b>${esc(c.v)}</b>${c.sub?`<i>${esc(c.sub)}</i>`:""}</div></div>`).join("")}
+function renderDash(){const s=D.sum,w=[];if(s.over)w.push(`⚠ ค่าใช้จ่ายเกินงบ ฿${fmt(s.over)}`);if(s.left<0)w.push(`⚠ รายจ่ายเกินรายได้ ฿${fmt(-s.left)} (ยอดคงเหลือติดลบ)`);$("stats").innerHTML=w.map(x=>`<div class="warn">${esc(x)}</div>`).join("")+cards().filter(c=>!hid.has(c.id)).map(c=>`<div class="st${c.big?" big":""}"><div class="ic" style="background:${c.c}33">${c.ic}</div><div><small>${esc(c.l)}</small><b>${esc(c.v)}</b>${c.sub?`<i>${esc(c.sub)}</i>`:""}</div></div>`).join("")}
 function repRows(){
   const s=D.sum,bt=s.bt||{},R=[["รายได้","","","h"]];
   D.other.forEach(o=>R.push([o.name,"",o.amt,""]));
   D.types.filter(t=>t.kind!=="x").forEach(t=>{const b=bt[t.id];if(b&&b.n)R.push([t.name,b.n+" เวร",b.amt,""])});
   R.push(["รายได้รวม","",s.total,"t"],["รายจ่าย","","","h"]);
   (D.expense||[]).forEach(o=>R.push([o.name,"",o.amt,""]));
-  R.push(["รายจ่ายรวม","",s.exp,"t"],["ยอดสุทธิ","",s.net,"t"],["จำนวนเวร",s.ns+s.no,"",""]);
+  if(s.cal)R.push(["ค่าใช้จ่ายจากปฏิทิน","",s.cal,""]);
+  R.push(["รายจ่ายรวม","",s.spent,"t"],["ยอดคงเหลือ","",s.left,"t"]);
+  if(s.budget)R.push(["งบค่าใช้จ่าย","",s.budget,""],[s.over?"เกินงบ":"งบคงเหลือ","",s.over||s.bleft,"t"]);
+  R.push(["จำนวนเวร",s.ns+s.no,"",""]);
   return R;
 }
 function renderRep(){
@@ -241,7 +248,7 @@ $("tadd").onclick=async()=>{if(await act("type",{op:"add",name:$("tn").value,sho
 $("oadd").onclick=async()=>{if(await act("other",{op:"add",name:$("on").value,amt:$("oa").value},true)){$("on").value=$("oa").value=""}};
 $("other").onclick=e=>{const b=e.target.closest("[data-od]");if(b)act("other",{op:"delete",name:b.dataset.od},true)};
 const toLine=t=>{const u="https://line.me/R/msg/text/?"+encodeURIComponent(t);if(!window.open(u,"_blank"))location.href=u};
-$("shareSum").onclick=()=>{const s=D.sum;toLine(`สรุปรายได้ ${MN[D.M]} ${D.Y+543}\nเวรปกติ ${s.ns} เวร: ${fmt(s.ms)} บาท\nOT ${s.no} เวร: ${fmt(s.mo)} บาท\nรายได้อื่น: ${fmt(s.oth)} บาท\nรวม ${fmt(s.total)} บาท${s.exp?`\nรายจ่าย ${fmt(s.exp)} บาท\nสุทธิ ${fmt(s.net)} บาท`:""}`)};
+$("shareSum").onclick=()=>{const s=D.sum;toLine(`สรุปรายได้ ${MN[D.M]} ${D.Y+543}\nเวรปกติ ${s.ns} เวร: ${fmt(s.ms)} บาท\nOT ${s.no} เวร: ${fmt(s.mo)} บาท\nรายได้อื่น: ${fmt(s.oth)} บาท\nรวม ${fmt(s.total)} บาท${s.exp?`\nรายจ่ายประจำ ${fmt(s.exp)} บาท`:""}${s.cal?`\nค่าใช้จ่ายจากปฏิทิน ${fx(s.cal)} บาท`:""}${s.spent?`\nยอดคงเหลือ ${fx(s.left)} บาท${s.left<0?" ⚠ ติดลบ":""}`:""}${s.budget?"\n"+btxt(s.budget,s.cal):""}`)};
 $("shareSch").onclick=()=>{const L=Object.keys(D.days).map(Number).sort((a,b)=>a-b).map(d=>d+" "+D.days[d].map(tp).filter(Boolean).map(alias).join(" "));
   toLine(`ตารางเวร ${MN[D.M]} ${D.Y+543}\n`+(L.join("\n")||"(ยังไม่มีเวร)"))};
 $("impBtn").onclick=async()=>{const r=await act("import",{text:$("imp").value},true);if(!r)return;
@@ -302,7 +309,7 @@ async function loadE(y,m){
 function ecards(){
   const s=E.sum,nd=Object.keys(E.days).length,nz=(E.zero||[]).length,tracked=nd+nz,over=E.budget&&s.total>E.budget,L=[];
   L.push({big:1,ic:"🍽️",c:"#ffffff",l:"ค่าใช้จ่ายเดือนนี้",v:"฿"+fx(s.total),sub:`${s.n} รายการ · ${nd} วัน`});
-  if(E.budget)L.push({ic:"🎯",c:over?"#e5484d":"#17a589",l:over?"เกินงบ":"งบคงเหลือ",v:"฿"+fx(Math.abs(E.budget-s.total)),sub:`งบ ฿${fx(E.budget)}`});
+  if(E.budget)L.push({ic:"🎯",c:over?"#e5484d":"#17a589",l:over?"⚠ เกินงบ":"ยอดคงเหลือ",v:"฿"+fx(Math.abs(E.budget-s.total)),sub:`งบ ฿${fx(E.budget)} · ใช้ไป ฿${fx(s.total)}`});
   if(tracked)L.push({ic:"📊",c:"#0b6aa2",l:"เฉลี่ยต่อวัน",v:"฿"+fx(s.total/tracked),sub:`จาก ${tracked} วันที่บันทึก`});
   if(nz)L.push({ic:"🙌",c:"#17a589",l:"วันที่ไม่มีค่าใช้จ่าย",v:`${nz} วัน`});
   Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]).forEach(id=>{const c=ecat(id);L.push({ic:EEMO[id]||"🍴",c:c.color,l:c.name,v:"฿"+fx(s.by[id])})});
@@ -310,10 +317,10 @@ function ecards(){
 }
 function renderE(){
   $("mt").textContent=`${MN[E.M]} ${E.Y+543}`;const s=E.sum,over=E.budget&&s.total>E.budget;
-  $("estats").innerHTML=ecards().map(c=>`<div class="st${c.big?" big":""}"><div class="ic" style="background:${c.c}33">${c.ic}</div><div><small>${esc(c.l)}</small><b>${esc(c.v)}</b>${c.sub?`<i>${esc(c.sub)}</i>`:""}</div></div>`).join("");
+  $("estats").innerHTML=(over?`<div class="warn">⚠ ค่าใช้จ่ายเกินงบ ฿${fx(s.total-E.budget)} (งบ ฿${fx(E.budget)})</div>`:"")+ecards().map(c=>`<div class="st${c.big?" big":""}"><div class="ic" style="background:${c.c}33">${c.ic}</div><div><small>${esc(c.l)}</small><b>${esc(c.v)}</b>${c.sub?`<i>${esc(c.sub)}</i>`:""}</div></div>`).join("");
   const ids=Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]);
   const mrows=id=>Object.entries((s.menus&&s.menus[id])||{}).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`<div class="row sub"><span class="lbl">${n?esc(n):"ไม่ระบุเมนู"}</span><span class="lbl">${fx(v)}</span></div>`).join("");
-  $("esum").innerHTML=(E.budget?`<div class="bar${over?" over":""}"><i style="width:${Math.min(100,s.total/E.budget*100)}%"></i></div><div class="lbl" style="margin-bottom:10px">งบ ${fx(E.budget)} บาท · ${over?`เกินงบ ${fx(s.total-E.budget)}`:`เหลือ ${fx(E.budget-s.total)}`}</div>`:"")
+  $("esum").innerHTML=(E.budget?`<div class="bar${over?" over":""}"><i style="width:${Math.min(100,s.total/E.budget*100)}%"></i></div><div class="lbl" style="margin-bottom:10px;${over?"color:#e5484d;font-weight:700":""}">${btxt(E.budget,s.total)}</div>`:"")
     +(ids.length?`<h3>แยกประเภทและเมนู</h3>`+ids.map(id=>{const c=ecat(id);return `<div class="row"><span><span class="sw" style="background:${c.color}"></span>${esc(c.name)}</span><b>${fx(s.by[id])}</b></div>${mrows(id)}`}).join(""):'<p class="lbl" style="margin:0">ยังไม่มีรายการ แตะวันที่ในปฏิทินเพื่อเพิ่ม</p>');
   const first=new Date(E.Y,E.M,1).getDay(),dim=dimE(),n=new Date();
   let h=DOW.map((d,i)=>`<div class="dow s${i}">${d}</div>`).join("")+'<div class="day empty"></div>'.repeat(first);
@@ -347,7 +354,7 @@ $("ecats").onclick=e=>{const b=e.target.closest("[data-cd]");if(!b)return;const 
 $("cadd").onclick=async()=>{if(await eact({op:"catadd",name:$("cn").value,color:$("cc").value},true))$("cn").value=""};
 $("ebs").onclick=()=>eact({op:"budget",amt:$("eb").value||0},true);
 function eShare(){if(!E||!E.cats)return;const s=E.sum,ids=Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]);
-  toLine(`ค่าใช้จ่าย ${MN[E.M]} ${E.Y+543}\n`+(ids.map(i=>`${ecat(i).name}: ${fx(s.by[i])} บาท`+Object.entries((s.menus&&s.menus[i])||{}).sort((a,b)=>b[1]-a[1]).filter(([n])=>n).map(([n,v])=>`\n  • ${n} ${fx(v)}`).join("")).join("\n")||"(ยังไม่มีรายการ)")+`\nรวม ${fx(s.total)} บาท`+(E.budget?`\nงบ ${fx(E.budget)} บาท`:""))}
+  toLine(`ค่าใช้จ่าย ${MN[E.M]} ${E.Y+543}\n`+(ids.map(i=>`${ecat(i).name}: ${fx(s.by[i])} บาท`+Object.entries((s.menus&&s.menus[i])||{}).sort((a,b)=>b[1]-a[1]).filter(([n])=>n).map(([n,v])=>`\n  • ${n} ${fx(v)}`).join("")).join("\n")||"(ยังไม่มีรายการ)")+`\nรวม ${fx(s.total)} บาท`+(E.budget?"\n"+btxt(E.budget,s.total):""))}
 // ---- สรุปรายวัน / เลือกหลายวัน ----
 const SEL=new Set();let SCOPE="month";
 const selDays=()=>SCOPE==="month"?[...Array(dimE()).keys()].map(i=>i+1):[...SEL].filter(d=>d>=1&&d<=dimE()).sort((a,b)=>a-b);
@@ -366,7 +373,7 @@ function renderDays(){
   const c=calcDays(),title=SCOPE==="month"?`ทั้งเดือน ${MN[E.M]} ${E.Y+543}`:`เลือก ${c.ds.length} วัน`;
   if(SCOPE==="pick"&&!c.ds.length){$("eres").innerHTML='<p class="lbl" style="margin:0">แตะวันที่ด้านบนเพื่อเลือก (เลือกได้หลายวัน)</p>';return}
   if(!c.rows.length){$("eres").innerHTML=`<h3>${title}</h3><p class="lbl" style="margin:0">ไม่มีรายการในช่วงนี้</p>`;return}
-  $("eres").innerHTML=`<div class="lbl">${title}</div><div class="total"><span>${fx(c.total)}</span><small>บาท</small></div>
+  $("eres").innerHTML=`<div class="lbl">${title}</div><div class="total"><span>${fx(c.total)}</span><small>บาท</small></div>${E.budget?`<div class="lbl" style="${E.sum.total>E.budget?"color:#e5484d;font-weight:700;":""}margin:2px 0 6px">ทั้งเดือน: ${btxt(E.budget,E.sum.total)}</div>`:""}
   <p class="lbl" style="margin:4px 0 8px">${c.n} รายการ ใน ${c.rows.length} วัน · เฉลี่ย ${fx(c.total/c.rows.length)} บาท/วัน${c.ds.length>c.rows.length&&SCOPE==="pick"?` · ไม่มีรายการ ${c.empty.length} วัน`:""}</p>
   ${c.rows.map(r=>`<div class="row" style="font-weight:700"><span>${r.d} ${MN[E.M]}${r.z?' <span class="lbl" style="font-weight:400">ไม่มีค่าใช้จ่าย</span>':""}</span><span>${fx(r.dt)}</span></div>`+r.l.map(x=>{const t=ecat(x.c);return `<div class="row sub"><span><span class="sw" style="background:${t.color}"></span>${x.n?esc(x.n):'<span class="lbl">ไม่ระบุเมนู</span>'} <span class="lbl">${esc(t.name)}</span></span><span>${fx(x.a)}</span></div>`}).join("")).join("")}`;
 }

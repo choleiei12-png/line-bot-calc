@@ -127,7 +127,7 @@ body.so .bnav{display:none}
  <button class="primary alt" id="edshare">💬 ส่งสรุปนี้เข้า LINE</button>
 </section>
 <section id="eset" class="hide">
- <div class="card"><h3>ประเภทอาหาร</h3><p class="lbl" style="margin:0 0 6px">เปลี่ยนชื่อ/สี ลบ หรือเพิ่มประเภทอื่นได้ตามต้องการ</p><div id="ecats"></div>
+ <div class="card"><h3>ประเภทค่าใช้จ่าย</h3><p class="lbl" style="margin:0 0 6px">เปลี่ยนชื่อ/สี ลบ หรือเพิ่มประเภทอื่นได้ตามต้องการ</p><div id="ecats"></div>
   <h3 style="margin-top:14px">เพิ่มประเภท</h3>
   <div class="add"><input type="text" id="cn" placeholder="ชื่อประเภท เช่น ชานม"><input type="color" id="cc" value="#e0457b" aria-label="สี"><button id="cadd">เพิ่ม</button></div></div>
  <div class="card"><h3>งบต่อเดือน</h3><p class="lbl" style="margin:0">ใส่ 0 เพื่อยกเลิกงบ</p>
@@ -293,7 +293,7 @@ $("tbody").onclick=async e=>{
 let E=null,MODE="shift",ecur=null,ebusy=false;
 const DOW=["อา","จ","อ","พ","พฤ","ศ","ส"],fx=n=>(+n).toLocaleString("th-TH",{maximumFractionDigits:2}),cp=n=>n>=10000?(Math.round(n/100)/10)+"k":fx(n);
 const NOC={id:"",name:"ไม่มีหมวด",color:"#9a97b3"},ecat=id=>(E&&E.cats&&E.cats.find(c=>c.id===id))||NOC;
-const EEMO={b:"🍳",l:"🍱",d:"🍲",k:"🥤",s:"🍪",o:"🧾"};
+const EEMO={b:"🍳",l:"🍱",d:"🍲",k:"🥤",s:"🍪",fu:"⛽",tr:"🚌",o:"🧾"};
 const emsg=m=>{$("emsg").textContent=m||""};
 const dimE=()=>new Date(E.Y,E.M+1,0).getDate(),ZD=d=>!!(E.zero&&E.zero.includes(d));
 async function ecall(body){

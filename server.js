@@ -50,7 +50,9 @@ function calc(u, Y, M) {
     const b = r.bt[t.id] || (r.bt[t.id] = { n: 0, amt: 0 }); b.n++; b.amt += t.kind === "x" ? 0 : t.rate;
     if (t.kind === "x") r.nx++; else if (t.kind === "o") { r.no++; r.mo += t.rate; } else { r.ns++; r.ms += t.rate; }
   });
-  r.oth = u.other.reduce((s, o) => s + o.amt, 0); r.total = r.ms + r.mo + r.oth; r.exp = (u.expense || []).reduce((s, o) => s + o.amt, 0); r.net = r.total - r.exp; return r;
+  r.oth = u.other.reduce((s, o) => s + o.amt, 0); r.total = r.ms + r.mo + r.oth; r.exp = (u.expense || []).reduce((s, o) => s + o.amt, 0); r.net = r.total - r.exp;
+  const eb = ex(u); r.cal = expMonth(eb, Y, M).total; r.budget = eb.budget || 0; r.spent = r2(r.exp + r.cal); r.left = r2(r.total - r.spent);
+  r.over = r.budget && r.cal > r.budget ? r2(r.cal - r.budget) : 0; r.bleft = r.budget ? r2(r.budget - r.cal) : 0; return r;
 }
 function monthData(u, Y, M) {
   const days = {}; for (let d = 1; d <= dim(Y, M); d++) { const a = u.days[key(Y, M, d)]; if (a && a.length) days[d] = a; }
@@ -77,7 +79,7 @@ const asking = new Map(); // id -> { t: เวลา, kind: "cal" | "sum", mo } 
 const ASKSUM = "จะสรุปอะไร?\n1. สรุปเวร\n2. สรุปค่าใช้จ่าย\n\nพิมพ์ 1 หรือ 2 (หรือพิมพ์ เวร / ค่าใช้จ่าย)";
 function shiftSummary(u, Y, mo) {
   const c = calc(u, Y, mo);
-  return `สรุป ${MN[mo]} ${Y + 543}\nเวรปกติ ${c.ns} เวร: ${fmt(c.ms)}\nOT ${c.no} เวร: ${fmt(c.mo)}\nรายได้อื่น: ${fmt(c.oth)}\nวันหยุด ${c.nx} วัน\nรวม ${fmt(c.total)} บาท${c.exp ? `\nรายจ่าย ${fmt(c.exp)} บาท\nสุทธิ ${fmt(c.net)} บาท` : ""}`;
+  return `สรุป ${MN[mo]} ${Y + 543}\nเวรปกติ ${c.ns} เวร: ${fmt(c.ms)}\nOT ${c.no} เวร: ${fmt(c.mo)}\nรายได้อื่น: ${fmt(c.oth)}\nวันหยุด ${c.nx} วัน\nรวม ${fmt(c.total)} บาท${c.exp ? `\nรายจ่ายประจำ ${fmt(c.exp)} บาท` : ""}${c.cal ? `\nค่าใช้จ่ายจากปฏิทิน ${fmtx(c.cal)} บาท` : ""}${c.spent ? `\nยอดคงเหลือ ${fmtx(c.left)} บาท${c.left < 0 ? " ⚠ ติดลบ (ใช้เกินรายได้)" : ""}` : ""}${c.budget ? "\n" + budgetTxt(c.budget, c.cal) : ""}`;
 }
 const ASK = "จะใช้ปฏิทินอะไร?\n1. ปฏิทินเวร\n2. ปฏิทินค่าใช้จ่าย\n\nพิมพ์ 1 หรือ 2 (หรือพิมพ์ชื่อปฏิทินก็ได้)";
 const C0 = () => [["b","อาหารเช้า","#f5b83d"],["l","อาหารกลางวัน","#ee8a4b"],["d","อาหารเย็น","#3b2fd8"],["k","เครื่องดื่ม","#17a589"],["s","ของว่าง","#e0457b"],["o","ค่าใช้จ่ายอื่นๆ","#9a97b3"]].map(([id,name,color]) => ({id,name,color}));
@@ -100,6 +102,7 @@ const NOCAT = { id: "", name: "ไม่มีหมวด", color: "#9a97b3" };
 const catOf = (e, id) => e.cats.find(c => c.id === id) || NOCAT;
 const findCat = (e, n) => { n = n.toLowerCase(); return e.cats.find(c => { const x = c.name.toLowerCase(); return x === n || x.replace(/^(อาหาร|ค่าใช้จ่าย)/, "") === n || (n === "อื่น" && x === "ค่าใช้จ่ายอื่นๆ"); }); }; // พิมพ์ "เช้า" ได้เท่ากับ "อาหารเช้า"
 const r2 = n => Math.round(n * 100) / 100;
+const budgetTxt = (b, spent) => b ? (spent > b ? `⚠ เกินงบ ${fmtx(spent - b)} บาท (งบ ${fmtx(b)})` : `งบ ${fmtx(b)} · ยอดคงเหลือ ${fmtx(b - spent)} บาท`) : "";
 const fmtx = n => (+n).toLocaleString("th-TH", { maximumFractionDigits: 2 });
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const PAL = ["#e0457b","#17a589","#f5b83d","#3b2fd8","#ee8a4b","#8e44ad","#2e86c1","#7f8c8d"];
@@ -143,7 +146,7 @@ function expSummary(u, Y, M) {
   const e = ex(u), m = expMonth(e, Y, M);
   if (!m.n) return `ยังไม่มีค่าใช้จ่าย ${MN[M]} ${Y + 543}\nพิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
   return `ค่าใช้จ่าย ${MN[M]} ${Y + 543}\n` + expBreakdown(e, m.by, m.menus) + `\nรวม ${fmtx(m.total)} บาท (${m.n} รายการ)`
-    + (e.budget ? `\nงบ ${fmtx(e.budget)} · ` + (m.total <= e.budget ? `เหลือ ${fmtx(e.budget - m.total)}` : `เกินงบ ${fmtx(m.total - e.budget)}`) : "");
+    + (e.budget ? "\n" + budgetTxt(e.budget, m.total) : "");
 }
 // รายการจ่ายรายวัน: ทั้งเดือน / วันเดียว / หลายวัน / ช่วงวัน แล้วสรุปรวมให้
 const BADDAY = "รูปแบบวันที่ไม่ถูกต้อง ตัวอย่าง: รายการจ่าย 16 / รายการจ่าย 16 18 20 / รายการจ่าย 16-20 / รายการจ่าย 16/11 / รายการจ่าย เดือน 9";
@@ -156,6 +159,11 @@ function parseDayArgs(args, Y, M) { // 16 | 16 18 20 | 16-20 | 16/11 | 16-20/11
     for (let d = a; d <= b; d++) set.add(key(Y, mo, d));
   }
   return set.size ? [...set].sort() : null;
+}
+function budgetOfRange(e, keys) {
+  const ms = [...new Set(keys.map(k => k.slice(0, 7)))]; if (!e.budget || ms.length !== 1) return "";
+  const [yy, mm] = ms[0].split("-").map(Number), mt = expMonth(e, yy, mm - 1).total;
+  return `\n\nทั้งเดือน ${MN[mm - 1]}: ใช้ไป ${fmtx(mt)} บาท\n` + budgetTxt(e.budget, mt);
 }
 function expRange(u, now, args) {
   const e = ex(u), { Y, M } = bkk(now); let keys = [], head, m; args = (args || "").trim();
@@ -171,7 +179,7 @@ function expRange(u, now, args) {
   });
   if (!rows.length) return `รายการจ่าย ${head}\nไม่มีรายการในช่วงนี้ พิมพ์ เช่น จ่าย กลางวัน 60 ข้าวมันไก่`;
   return `รายการจ่าย ${head}\nรวม ${fmtx(total)} บาท (${n} รายการ ใน ${rows.length} วัน · เฉลี่ย ${fmtx(total / rows.length)}/วัน)` + (args && keys.length > rows.length ? `\n(ไม่มีรายการ ${keys.length - rows.length} วัน)` : "")
-    + "\n\n" + rows.join("\n");
+    + "\n\n" + rows.join("\n") + budgetOfRange(e, keys);
 }
 function expAdd(u, text, now) {
   const e = ex(u), { Y, M, D: today } = bkk(now), ok = [], bad = [], made = [];
@@ -191,7 +199,7 @@ function expAdd(u, text, now) {
   if (!ok.length) return "บันทึกไม่ได้\n" + bad.join("\n") + "\n\nตัวอย่าง: จ่าย กลางวัน 60 ข้าวมันไก่ หรือ จ่าย 16 เช้า 40 ไข่กระทะ";
   const mm = expMonth(e, Y, M);
   return `บันทึกค่าใช้จ่าย ${ok.length} รายการ\n` + ok.join("\n") + (made.length ? `\n(สร้างประเภทใหม่: ${made.join(", ")})` : "")
-    + (bad.length ? "\n\nบันทึกไม่ได้:\n" + bad.join("\n") : "") + `\n\nรวม${MN[M]} ${fmtx(mm.total)} บาท` + (e.budget ? ` (งบ${mm.total <= e.budget ? "เหลือ " + fmtx(e.budget - mm.total) : "เกิน " + fmtx(mm.total - e.budget)})` : "");
+    + (bad.length ? "\n\nบันทึกไม่ได้:\n" + bad.join("\n") : "") + `\n\nรวม${MN[M]} ${fmtx(mm.total)} บาท` + (e.budget ? "\n" + budgetTxt(e.budget, mm.total) : "");
 }
 function expCmd(u, text, now) {
   const t = text.trim(), { Y, M } = bkk(now); let m;
@@ -224,8 +232,8 @@ function expCmd(u, text, now) {
     e.cats = e.cats.filter(x => x !== c); save(); return `ลบประเภท ${c.name} แล้ว (รายการเดิมจะกลายเป็น "ไม่มีหมวด")`;
   }
   if ((m = t.match(/^งบ(?:\s+([\d,]+))?$/))) {
-    const e = ex(u); if (m[1] === undefined) return e.budget ? `งบต่อเดือน ${fmtx(e.budget)} บาท` : "ยังไม่ได้ตั้งงบ พิมพ์ เช่น งบ 15000";
-    e.budget = Math.min(1e8, +m[1].replace(/,/g, "")); save(); return e.budget ? `ตั้งงบต่อเดือน ${fmtx(e.budget)} บาท แล้ว` : "ยกเลิกงบแล้ว";
+    const e = ex(u); if (m[1] === undefined) return e.budget ? `งบต่อเดือน ${fmtx(e.budget)} บาท\n` + budgetTxt(e.budget, expMonth(e, Y, M).total) : "ยังไม่ได้ตั้งงบ พิมพ์ เช่น งบ 15000";
+    e.budget = Math.min(1e8, +m[1].replace(/,/g, "")); save(); return e.budget ? `ตั้งงบต่อเดือน ${fmtx(e.budget)} บาท แล้ว\n` + budgetTxt(e.budget, expMonth(e, Y, M).total) : "ยกเลิกงบแล้ว";
   }
   return null;
 }
@@ -386,6 +394,8 @@ async function push(to, text) {
 const HELP = `วิธีใช้
 • ลงเวร: พิมพ์ 16 เช้า / 17 บ่าย ดึก / 18 OT เช้า / 19 OFF (หลายบรรทัดได้)
 • สรุป  หรือ  สรุป 9 — บอทจะถามว่าจะสรุป เวร หรือ ค่าใช้จ่าย (พิมพ์ สรุปเวร / สรุปจ่าย เพื่อข้ามคำถาม)
+• สรุปวันนี้ — สรุป 1 วัน (เวร + ค่าใช้จ่ายของวันนี้)
+• สรุปเดือนนี้ — สรุป 1 เดือน (เวร + ค่าใช้จ่าย + ยอดคงเหลือ/งบ)
 • ตาราง — ดูเวรเดือนนี้\n• ปฏิทิน — ขอลิงก์ปฏิทิน (บอทจะถามว่าจะใช้ ปฏิทินเวร หรือ ปฏิทินค่าใช้จ่าย)\n• ลิงก์ใหม่ — เปลี่ยนลิงก์ปฏิทิน
 • ลบ 16 — ล้างเวรวันที่ 16
 • ตั้งค่า — ดูค่าเวร
@@ -418,6 +428,18 @@ const HELP = `วิธีใช้
 • ฝากเวร 20 ให้ ฝน — ยกเวรให้
 • คำขอ / รับ 3 / ปฏิเสธ 3 / ยกเลิกคำขอ 3`;
 
+function daySummary(u, now) {
+  const { Y, M, D } = bkk(now), k = key(Y, M, D), e = ex(u), sh = shiftsOn(u, k);
+  const off = (u.days[k] || []).some(i => (u.types.find(x => x.id === i) || {}).kind === "x");
+  const pay = sh.reduce((s, t) => s + (+t.rate || 0), 0), l = e.items[k] || [], tot = l.reduce((s, x) => s + x.a, 0), mt = expMonth(e, Y, M).total;
+  return `สรุปวันนี้ ${fd(k)} ${Y + 543}\nเวร: ${sh.length ? label(u, k) + ` (${fmt(pay)} บาท)` : off ? "วันหยุด (OFF)" : "ไม่มีเวร"}\nค่าใช้จ่าย: `
+    + (l.length ? `${fmtx(tot)} บาท (${l.length} รายการ)\n` + l.map((x, i) => ` ${i + 1}. ${catOf(e, x.c).name}${x.n ? " " + x.n : ""} ${fmtx(x.a)}`).join("\n") : e.zero && e.zero[k] ? "0 บาท (ไม่มีค่าใช้จ่าย)" : "ยังไม่มีรายการ")
+    + (e.budget ? `\n\nทั้งเดือนใช้ไป ${fmtx(mt)} บาท\n` + budgetTxt(e.budget, mt) : "");
+}
+function monthSummary(u, Y, M) {
+  const e = ex(u), m = expMonth(e, Y, M);
+  return shiftSummary(u, Y, M) + (m.n ? "\n\nค่าใช้จ่ายแยกประเภท\n" + expBreakdown(e, m.by, m.menus) : "");
+}
 function handle(id, text, now = new Date(), base = "") {
   const u = user(id), t = text.trim(), { Y, M } = bkk(now); let m;
   if (/^(ช่วยเหลือ|help|เมนู)$/i.test(t)) return HELP;
@@ -432,6 +454,8 @@ function handle(id, text, now = new Date(), base = "") {
       }
     }
   }
+  if (t === "สรุปวันนี้") return daySummary(u, now);
+  if (t === "สรุปเดือนนี้") return monthSummary(u, Y, M);
   if ((m = t.match(/^สรุป(เวร)?\s*(\d{1,2})?$/))) {
     const mo = m[2] ? +m[2] - 1 : M; if (mo < 0 || mo > 11) return "เดือนต้องเป็น 1–12";
     if (m[1]) return shiftSummary(u, Y, mo);

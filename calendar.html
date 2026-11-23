@@ -78,6 +78,7 @@ body.so .bnav{display:none}
 .panel{max-height:90vh;overflow-y:auto}
 .warn{grid-column:1/-1;background:#fdecec;color:#b42318;border:1px solid #f5b5b0;border-radius:16px;padding:12px 14px;font-weight:700}
 @media (prefers-color-scheme:dark){.warn{background:#3a1717;color:#ffb4ab;border-color:#6b2a2a}}
+.sti{border:1px solid var(--line);border-radius:14px;padding:10px;margin-top:8px;background:var(--bg)}.sti .top{display:flex;justify-content:space-between;align-items:center;gap:8px}.srow{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}.srow input[type=number]{width:84px}
 </style></head><body><main>
 <div class="hero"><div class="hi" id="hicon">📅</div><div><b id="htitle">ตารางเวรพยาบาล</b><span id="hello">ยินดีต้อนรับสู่ตารางเวร</span></div></div>
 <div class="two"><button class="btn w" id="refresh">↻ รีเฟรชข้อมูล</button><button class="btn b" id="shareTop">💬 ส่งสรุปเข้า LINE</button></div>
@@ -133,11 +134,21 @@ body.so .bnav{display:none}
  <div class="card"><h3>งบต่อเดือน</h3><p class="lbl" style="margin:0">ใส่ 0 เพื่อยกเลิกงบ</p>
   <div class="add"><input type="number" id="eb" inputmode="decimal" placeholder="บาท"><button id="ebs">บันทึก</button></div></div>
 </section>
+<section id="estock" class="hide">
+ <div class="card"><h3>🛒 ของใช้ในบ้าน</h3><div id="ssum"></div>
+  <div class="tabs" id="stabs" style="margin:12px 0 0"><button class="on" data-s="buy">🛒 ต้องซื้อ</button><button data-s="have">✅ ยังมีอยู่</button></div></div>
+ <div id="slist"></div>
+ <button class="primary alt" id="sshare" style="margin-bottom:12px">💬 ส่งรายการที่ต้องซื้อเข้า LINE</button>
+ <div class="card"><h3>เพิ่มรายการ</h3>
+  <div class="add"><input type="text" id="sn" placeholder="ชื่อ เช่น น้ำยาล้างจาน" maxlength="30"><select id="sg"></select></div>
+  <div class="add"><input type="number" id="sp" inputmode="decimal" placeholder="ราคา (บาท)" style="width:110px"><select id="su"><option>ชิ้น</option><option>แพ็ค</option></select><select id="sstat"><option value="buy">ต้องซื้อ</option><option value="have">ยังมีอยู่</option></select><button id="sadd">เพิ่ม</button></div>
+  <p class="lbl" id="smsg" style="color:#d33;margin:8px 0 0"></p></div>
+</section>
 </div>
-<p class="lbl" style="text-align:center;margin:18px 0 0">เวอร์ชันหน้าเว็บ 21 ต.ค. 2569 (แก้ปุ่มเพิ่ม/ปุ่มถูกบัง)</p>
+<p class="lbl" style="text-align:center;margin:18px 0 0">เวอร์ชันหน้าเว็บ 23 พ.ย. 2569 (เพิ่มรายการของใช้)</p>
 </main>
 <nav class="bnav" id="snav"><div><button class="on" data-t="dash"><span>🏠</span>ภาพรวม</button><button data-t="cal"><span>📅</span>ตารางเวร</button><button data-t="team"><span>👥</span>ทีม</button><button data-t="rep"><span>📊</span>รายงาน</button><button data-t="line"><span>💬</span>LINE</button><button data-t="set"><span>⚙️</span>ตั้งค่า</button></div></nav>
-<nav class="bnav hide" id="enav"><div><button class="on" data-t="edash"><span>🏠</span>ภาพรวม</button><button data-t="ecal"><span>📅</span>ปฏิทิน</button><button data-t="eday"><span>🧾</span>รายวัน</button><button data-t="eset"><span>⚙️</span>ตั้งค่า</button></div></nav>
+<nav class="bnav hide" id="enav"><div><button class="on" data-t="edash"><span>🏠</span>ภาพรวม</button><button data-t="ecal"><span>📅</span>ปฏิทิน</button><button data-t="eday"><span>🧾</span>รายวัน</button><button data-t="estock"><span>🛒</span>ของใช้</button><button data-t="eset"><span>⚙️</span>ตั้งค่า</button></div></nav>
 <div class="sheet" id="msheet"><div class="panel"><h3>จัดการกล่อง</h3><p class="lbl" style="margin:4px 0 0">แตะเพื่อซ่อน/แสดงกล่องในหน้าภาพรวม</p><div class="chips" id="mchips"></div><button class="primary" id="mdone">เสร็จ</button></div></div>
 <div class="sheet" id="sheet"><div class="panel"><h3 id="st"></h3><div class="chips" id="chips"></div><button class="primary" id="done">เสร็จ</button></div></div>
 <div class="sheet" id="esheet"><div class="panel" style="max-height:88vh;overflow:auto"><h3 id="est"></h3><div id="elist"></div>
@@ -293,7 +304,7 @@ $("tbody").onclick=async e=>{
 let E=null,MODE="shift",ecur=null,ebusy=false;
 const DOW=["อา","จ","อ","พ","พฤ","ศ","ส"],fx=n=>(+n).toLocaleString("th-TH",{maximumFractionDigits:2}),cp=n=>n>=10000?(Math.round(n/100)/10)+"k":fx(n);
 const NOC={id:"",name:"ไม่มีหมวด",color:"#9a97b3"},ecat=id=>(E&&E.cats&&E.cats.find(c=>c.id===id))||NOC;
-const EEMO={b:"🍳",l:"🍱",d:"🍲",k:"🥤",s:"🍪",fu:"⛽",tr:"🚌",o:"🧾"};
+const EEMO={b:"🍳",l:"🍱",d:"🍲",k:"🥤",s:"🍪",fu:"⛽",tr:"🚌",hh:"🧴",o:"🧾"};
 const emsg=m=>{$("emsg").textContent=m||""};
 const dimE=()=>new Date(E.Y,E.M+1,0).getDate(),ZD=d=>!!(E.zero&&E.zero.includes(d));
 async function ecall(body){
@@ -304,7 +315,7 @@ async function ecall(body){
 }
 async function loadE(y,m){
   if(y!=null)E=Object.assign(E||{},{Y:y,M:m});
-  if(await ecall()){renderE();if(!$("eset").contains(document.activeElement))renderESet();if(ecur&&$("esheet").classList.contains("show"))renderDay()}
+  if(await ecall()){renderE();if(!$("eset").contains(document.activeElement))renderESet();if(ecur&&$("esheet").classList.contains("show"))renderDay();if(!$("estock").contains(document.activeElement))renderStock(true)}
 }
 function ecards(){
   const s=E.sum,nd=Object.keys(E.days).length,nz=(E.zero||[]).length,tracked=nd+nz,over=E.budget&&s.total>E.budget,L=[];
@@ -312,6 +323,7 @@ function ecards(){
   if(E.budget)L.push({ic:"🎯",c:over?"#e5484d":"#17a589",l:over?"⚠ เกินงบ":"ยอดคงเหลือ",v:"฿"+fx(Math.abs(E.budget-s.total)),sub:`งบ ฿${fx(E.budget)} · ใช้ไป ฿${fx(s.total)}`});
   if(tracked)L.push({ic:"📊",c:"#0b6aa2",l:"เฉลี่ยต่อวัน",v:"฿"+fx(s.total/tracked),sub:`จาก ${tracked} วันที่บันทึก`});
   if(nz)L.push({ic:"🙌",c:"#17a589",l:"วันที่ไม่มีค่าใช้จ่าย",v:`${nz} วัน`});
+  if(E.stock&&E.stock.nbuy)L.push({ic:"🛒",c:"#0ea5a4",l:"ของใช้ที่ต้องซื้อ",v:"฿"+fx(E.stock.total),sub:`${E.stock.nbuy} รายการ`});
   Object.keys(s.by).sort((a,b)=>s.by[b]-s.by[a]).forEach(id=>{const c=ecat(id);L.push({ic:EEMO[id]||"🍴",c:c.color,l:c.name,v:"฿"+fx(s.by[id])})});
   return L;
 }
@@ -389,7 +401,7 @@ $("edshare").onclick=()=>{const c=calcDays();if(!c.rows.length)return;
 setInterval(()=>{if(MODE==="exp"&&E&&E.cats&&!ebusy&&!$("esheet").classList.contains("show")&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)},30000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&MODE==="exp"&&E&&E.cats&&!document.activeElement.matches("input,textarea,select"))loadE(E.Y,E.M)});
 // ---- สลับปฏิทินเวร / ปฏิทินค่าใช้จ่าย ----
-const goE=t=>{$("enav").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.t===t));["edash","ecal","eday","eset"].forEach(id=>$(id).classList.toggle("hide",id!==t));scrollTo(0,0)};
+const goE=t=>{$("enav").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.t===t));["edash","ecal","eday","estock","eset"].forEach(id=>$(id).classList.toggle("hide",id!==t));if(t==="estock")renderStock(true);scrollTo(0,0)};
 $("enav").onclick=e=>{const b=e.target.closest("button");if(b)goE(b.dataset.t)};
 function setMode(m){
   MODE=m;$("modes").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.m===m));
@@ -404,6 +416,44 @@ function setMode(m){
   scrollTo(0,0);
 }
 $("modes").onclick=e=>{const b=e.target.closest("button");if(b&&b.dataset.m!==MODE)setMode(b.dataset.m)};
+// ---- ของใช้ในบ้าน ----
+let STAB="buy";
+const smsg=m=>{$("smsg").textContent=m||""};
+const sl=()=>E&&E.stock?E.stock:{groups:[],items:[],total:0,nbuy:0,unpriced:0};
+const sbuyText=()=>{const S=sl(),b=S.items.filter(i=>i.st==="buy");return "🛒 ของที่ต้องซื้อ\n"+(b.length?b.map(i=>`• ${i.name}${i.q>1?` ×${i.q}`:""} — ${i.p>0?`${fx(i.p)} บาท/${i.un}${i.q>1?` = ${fx(i.p*i.q)}`:""}`:"ยังไม่ใส่ราคา"}`).join("\n")+`\nรวมประมาณ ${fx(S.total)} บาท`:"ไม่มี")};
+const sub=i=>i.st==="buy"&&i.p>0?`รวม ฿${fx(i.p*i.q)}`:"";
+function itemRow(i){
+  const b=i.st==="buy";
+  return `<div class="sti"><div class="top"><b>${esc(i.name)}</b><span style="display:flex;gap:6px;flex:none">${b?`<button class="sm" data-sa="bought" data-id="${i.id}">✔ ซื้อแล้ว</button>`:`<button class="sm" data-sa="buy" data-id="${i.id}">หมดแล้ว</button>`}<button class="del" data-sa="del" data-id="${i.id}" aria-label="ลบ">×</button></span></div>
+  <div class="srow"><input type="number" inputmode="decimal" data-sf="p" data-id="${i.id}" value="${i.p||""}" placeholder="ราคา"><span class="lbl">บาท /</span><select data-sf="un" data-id="${i.id}"><option${i.un==="ชิ้น"?" selected":""}>ชิ้น</option><option${i.un==="แพ็ค"?" selected":""}>แพ็ค</option></select>${b?`<span class="lbl">× จำนวน</span><input type="number" inputmode="numeric" data-sf="q" data-id="${i.id}" value="${i.q}" min="1" style="width:60px">`:""}</div><div class="lbl stot" style="margin-top:4px">${sub(i)}</div></div>`}
+function renderStock(rows){
+  const S=sl(),buy=S.items.filter(i=>i.st==="buy"),hv=S.items.filter(i=>i.st!=="buy");
+  $("ssum").innerHTML=`<div class="total"><span>฿${fx(S.total)}</span><small>ประมาณที่ต้องจ่าย</small></div><p class="lbl" style="margin:4px 0 0">ต้องซื้อ ${buy.length} รายการ · ยังมีอยู่ ${hv.length} รายการ${S.unpriced?` · <span style="color:#e5484d">ยังไม่ใส่ราคา ${S.unpriced} รายการ</span>`:""}</p>`;
+  $("stabs").querySelectorAll("button").forEach(b=>{const k=b.dataset.s==="buy";b.textContent=(k?"🛒 ต้องซื้อ":"✅ ยังมีอยู่")+` (${k?buy.length:hv.length})`;b.classList.toggle("on",b.dataset.s===STAB)});
+  const gv=$("sg").value;$("sg").innerHTML=S.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");if(gv)$("sg").value=gv;
+  if(!rows)return;
+  const list=STAB==="buy"?buy:hv;
+  $("slist").innerHTML=S.groups.map(g=>{const l=list.filter(i=>i.g===g.id);return l.length?`<div class="card"><h3>${esc(g.name)}</h3>${l.map(itemRow).join("")}</div>`:""}).join("")||`<div class="card"><p class="lbl" style="margin:0">${STAB==="buy"?"ยังไม่มีของที่ต้องซื้อ 🎉 ถ้าของใกล้หมดให้กด หมดแล้ว ที่รายการในแท็บ ยังมีอยู่":"ยังไม่มีรายการ เพิ่มได้ด้านล่าง"}</p></div>`;
+}
+async function sact(body,rows){if(ebusy)return null;ebusy=true;const r=await ecall(body);ebusy=false;if(r){smsg("");renderE();renderStock(rows)}else smsg($("err").textContent);return r}
+$("stabs").onclick=e=>{const b=e.target.closest("[data-s]");if(!b)return;STAB=b.dataset.s;renderStock(true)};
+$("slist").onclick=async e=>{
+  const b=e.target.closest("[data-sa]");if(!b)return;const id=b.dataset.id,a=b.dataset.sa,it=sl().items.find(i=>i.id===id);if(!it)return;
+  if(a==="buy")await sact({op:"sst",id,st:"buy"},true);
+  else if(a==="bought"){const c=(it.p||0)*(it.q||1),rec=c>0&&confirm(`บันทึก ${it.name} ฿${fx(c)} เป็นค่าใช้จ่ายวันนี้ด้วยไหม?`);await sact({op:"sbought",id,rec},true)}
+  else if(a==="del"){if(confirm(`ลบ "${it.name}" ออกจากรายการ?`))await sact({op:"sdel",id},true)}
+};
+$("slist").onchange=async e=>{
+  const t=e.target,f=t.dataset.sf;if(!f)return;
+  const r=await sact({op:"supd",id:t.dataset.id,[f]:t.value},false);
+  const it=r&&sl().items.find(i=>i.id===t.dataset.id),row=t.closest(".sti"),st=row&&row.querySelector(".stot");
+  if(it&&st)st.textContent=sub(it);
+};
+$("sadd").onclick=async()=>{
+  const st=$("sstat").value,r=await sact({op:"sadd",name:$("sn").value,g:$("sg").value,p:$("sp").value,un:$("su").value,st},true);
+  if(r){$("sn").value=$("sp").value="";STAB=st;renderStock(true)}
+};
+$("sshare").onclick=()=>toLine(sbuyText());
 // ซ่อนเมนูล่างระหว่างเปิดหน้าต่างด้านล่าง กันเมนูบังปุ่ม
 const syncSheet=()=>document.body.classList.toggle("so",!!document.querySelector(".sheet.show"));
 document.querySelectorAll(".sheet").forEach(s=>new MutationObserver(syncSheet).observe(s,{attributes:true,attributeFilter:["class"]}));

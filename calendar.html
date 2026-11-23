@@ -141,11 +141,12 @@ body.so .bnav{display:none}
  <button class="primary alt" id="sshare" style="margin-bottom:12px">💬 ส่งรายการที่ต้องซื้อเข้า LINE</button>
  <div class="card"><h3>เพิ่มรายการ</h3>
   <div class="add"><input type="text" id="sn" placeholder="ชื่อ เช่น น้ำยาล้างจาน" maxlength="30"><select id="sg"></select></div>
-  <div class="add"><input type="number" id="sp" inputmode="decimal" placeholder="ราคา (บาท)" style="width:110px"><select id="su"><option>ชิ้น</option><option>แพ็ค</option></select><select id="sstat"><option value="buy">ต้องซื้อ</option><option value="have">ยังมีอยู่</option></select><button id="sadd">เพิ่ม</button></div>
+  <div class="add"><input type="number" id="sp" inputmode="decimal" placeholder="ราคาต่อหน่วย (บาท)" style="width:150px"><select id="su"><option>ชิ้น</option><option>แพ็ค</option></select><input type="number" id="sq" inputmode="numeric" placeholder="จำนวน" value="1" min="1" style="width:84px"></div>
+  <div class="add"><select id="sstat" style="flex:1;min-width:0"><option value="buy">ต้องซื้อ (จำนวนที่ต้องซื้อ)</option><option value="have">ยังมีอยู่ (จำนวนที่มีอยู่)</option></select><button id="sadd">เพิ่ม</button></div>
   <p class="lbl" id="smsg" style="color:#d33;margin:8px 0 0"></p></div>
 </section>
 </div>
-<p class="lbl" style="text-align:center;margin:18px 0 0">เวอร์ชันหน้าเว็บ 23 พ.ย. 2569 (เพิ่มรายการของใช้)</p>
+<p class="lbl" style="text-align:center;margin:18px 0 0">เวอร์ชันหน้าเว็บ 23 พ.ย. 2569 (ของใช้: ใส่จำนวนได้)</p>
 </main>
 <nav class="bnav" id="snav"><div><button class="on" data-t="dash"><span>🏠</span>ภาพรวม</button><button data-t="cal"><span>📅</span>ตารางเวร</button><button data-t="team"><span>👥</span>ทีม</button><button data-t="rep"><span>📊</span>รายงาน</button><button data-t="line"><span>💬</span>LINE</button><button data-t="set"><span>⚙️</span>ตั้งค่า</button></div></nav>
 <nav class="bnav hide" id="enav"><div><button class="on" data-t="edash"><span>🏠</span>ภาพรวม</button><button data-t="ecal"><span>📅</span>ปฏิทิน</button><button data-t="eday"><span>🧾</span>รายวัน</button><button data-t="estock"><span>🛒</span>ของใช้</button><button data-t="eset"><span>⚙️</span>ตั้งค่า</button></div></nav>
@@ -420,12 +421,13 @@ $("modes").onclick=e=>{const b=e.target.closest("button");if(b&&b.dataset.m!==MO
 let STAB="buy";
 const smsg=m=>{$("smsg").textContent=m||""};
 const sl=()=>E&&E.stock?E.stock:{groups:[],items:[],total:0,nbuy:0,unpriced:0};
-const sbuyText=()=>{const S=sl(),b=S.items.filter(i=>i.st==="buy");return "🛒 ของที่ต้องซื้อ\n"+(b.length?b.map(i=>`• ${i.name}${i.q>1?` ×${i.q}`:""} — ${i.p>0?`${fx(i.p)} บาท/${i.un}${i.q>1?` = ${fx(i.p*i.q)}`:""}`:"ยังไม่ใส่ราคา"}`).join("\n")+`\nรวมประมาณ ${fx(S.total)} บาท`:"ไม่มี")};
-const sub=i=>i.st==="buy"&&i.p>0?`รวม ฿${fx(i.p*i.q)}`:"";
+const sbuyText=()=>{const S=sl(),b=S.items.filter(i=>i.st==="buy");return "🛒 ของที่ต้องซื้อ\n"+(b.length?b.map(i=>`• ${i.name} ${i.q} ${i.un} — ${i.p>0?`${fx(i.p)} บาท/${i.un}${i.q>1?` = ${fx(i.p*i.q)}`:""}`:"ยังไม่ใส่ราคา"}`).join("\n")+`\nรวมประมาณ ${fx(S.total)} บาท`:"ไม่มี")};
+const sub=i=>i.st==="buy"&&i.p>0?`${i.q} ${i.un} × ฿${fx(i.p)} = ฿${fx(i.p*i.q)}`:"";
 function itemRow(i){
   const b=i.st==="buy";
   return `<div class="sti"><div class="top"><b>${esc(i.name)}</b><span style="display:flex;gap:6px;flex:none">${b?`<button class="sm" data-sa="bought" data-id="${i.id}">✔ ซื้อแล้ว</button>`:`<button class="sm" data-sa="buy" data-id="${i.id}">หมดแล้ว</button>`}<button class="del" data-sa="del" data-id="${i.id}" aria-label="ลบ">×</button></span></div>
-  <div class="srow"><input type="number" inputmode="decimal" data-sf="p" data-id="${i.id}" value="${i.p||""}" placeholder="ราคา"><span class="lbl">บาท /</span><select data-sf="un" data-id="${i.id}"><option${i.un==="ชิ้น"?" selected":""}>ชิ้น</option><option${i.un==="แพ็ค"?" selected":""}>แพ็ค</option></select>${b?`<span class="lbl">× จำนวน</span><input type="number" inputmode="numeric" data-sf="q" data-id="${i.id}" value="${i.q}" min="1" style="width:60px">`:""}</div><div class="lbl stot" style="margin-top:4px">${sub(i)}</div></div>`}
+  <div class="srow"><input type="number" inputmode="decimal" data-sf="p" data-id="${i.id}" value="${i.p||""}" placeholder="ราคา"><span class="lbl">บาท /</span><select data-sf="un" data-id="${i.id}"><option${i.un==="ชิ้น"?" selected":""}>ชิ้น</option><option${i.un==="แพ็ค"?" selected":""}>แพ็ค</option></select></div>
+  <div class="srow"><span class="lbl">${b?"ต้องซื้อ":"มีอยู่"}</span><input type="number" inputmode="numeric" data-sf="${b?"q":"h"}" data-id="${i.id}" value="${b?i.q:i.h}" min="${b?1:0}" style="width:70px"><span class="lbl uq">${i.un}</span>${b&&i.h>0?`<span class="lbl">(มีอยู่ ${i.h})</span>`:""}</div><div class="lbl stot" style="margin-top:4px">${sub(i)}</div></div>`}
 function renderStock(rows){
   const S=sl(),buy=S.items.filter(i=>i.st==="buy"),hv=S.items.filter(i=>i.st!=="buy");
   $("ssum").innerHTML=`<div class="total"><span>฿${fx(S.total)}</span><small>ประมาณที่ต้องจ่าย</small></div><p class="lbl" style="margin:4px 0 0">ต้องซื้อ ${buy.length} รายการ · ยังมีอยู่ ${hv.length} รายการ${S.unpriced?` · <span style="color:#e5484d">ยังไม่ใส่ราคา ${S.unpriced} รายการ</span>`:""}</p>`;
@@ -439,8 +441,8 @@ async function sact(body,rows){if(ebusy)return null;ebusy=true;const r=await eca
 $("stabs").onclick=e=>{const b=e.target.closest("[data-s]");if(!b)return;STAB=b.dataset.s;renderStock(true)};
 $("slist").onclick=async e=>{
   const b=e.target.closest("[data-sa]");if(!b)return;const id=b.dataset.id,a=b.dataset.sa,it=sl().items.find(i=>i.id===id);if(!it)return;
-  if(a==="buy")await sact({op:"sst",id,st:"buy"},true);
-  else if(a==="bought"){const c=(it.p||0)*(it.q||1),rec=c>0&&confirm(`บันทึก ${it.name} ฿${fx(c)} เป็นค่าใช้จ่ายวันนี้ด้วยไหม?`);await sact({op:"sbought",id,rec},true)}
+  if(a==="buy")await sact({op:"sst",id,st:"buy",out:true},true);
+  else if(a==="bought"){const c=(it.p||0)*(it.q||1),rec=c>0&&confirm(`บันทึก ${it.name} ${it.q} ${it.un} ฿${fx(c)} เป็นค่าใช้จ่ายวันนี้ด้วยไหม?`);await sact({op:"sbought",id,rec},true)}
   else if(a==="del"){if(confirm(`ลบ "${it.name}" ออกจากรายการ?`))await sact({op:"sdel",id},true)}
 };
 $("slist").onchange=async e=>{
@@ -448,10 +450,11 @@ $("slist").onchange=async e=>{
   const r=await sact({op:"supd",id:t.dataset.id,[f]:t.value},false);
   const it=r&&sl().items.find(i=>i.id===t.dataset.id),row=t.closest(".sti"),st=row&&row.querySelector(".stot");
   if(it&&st)st.textContent=sub(it);
+  if(f==="un"&&row&&row.querySelectorAll)row.querySelectorAll(".uq").forEach(x=>x.textContent=t.value);
 };
 $("sadd").onclick=async()=>{
-  const st=$("sstat").value,r=await sact({op:"sadd",name:$("sn").value,g:$("sg").value,p:$("sp").value,un:$("su").value,st},true);
-  if(r){$("sn").value=$("sp").value="";STAB=st;renderStock(true)}
+  const st=$("sstat").value,r=await sact({op:"sadd",name:$("sn").value,g:$("sg").value,p:$("sp").value,un:$("su").value,st,[st==="buy"?"q":"h"]:$("sq").value},true);
+  if(r){$("sn").value=$("sp").value="";$("sq").value="1";STAB=st;renderStock(true)}
 };
 $("sshare").onclick=()=>toLine(sbuyText());
 // ซ่อนเมนูล่างระหว่างเปิดหน้าต่างด้านล่าง กันเมนูบังปุ่ม

@@ -147,20 +147,20 @@ function expMonth(e, Y, M) {
 // ===== ของใช้ในบ้าน: ต้องซื้อ / ยังมีอยู่ (ราคาต่อชิ้น หรือ ต่อแพ็ค) =====
 const G0 = () => [["bath", "ของใช้ในห้องน้ำ"], ["kit", "ของใช้ในครัว"], ["oth", "ของใช้อื่นๆ"]].map(([id, name]) => ({ id, name }));
 const S0 = () => [["bath", "สบู่", "ชิ้น"], ["bath", "โฟมล้างหน้า", "ชิ้น"], ["bath", "ยาสีฟัน", "ชิ้น"], ["kit", "น้ำแพ็ค", "แพ็ค"], ["kit", "ข้าว", "ชิ้น"], ["kit", "มาม่า", "แพ็ค"], ["kit", "ไข่", "แพ็ค"]]
-  .map(([g, name, un]) => ({ id: newId(), name, g, st: "have", p: 0, un, q: 1 }));
-const stk = u => { const e = ex(u); if (!e.stock) { e.stock = { groups: G0(), items: S0() }; save(); } return e.stock; };
+  .map(([g, name, un]) => ({ id: newId(), name, g, st: "have", p: 0, un, q: 1, h: 0 }));
+const stk = u => { const e = ex(u); if (!e.stock) { e.stock = { groups: G0(), items: S0() }; save(); } e.stock.items.forEach(i => { if (i.h === undefined) i.h = 0; }); return e.stock; };
 const buyTotal = s => r2(s.items.filter(i => i.st === "buy").reduce((t, i) => t + i.p * i.q, 0));
 function stockData(u) {
   const s = stk(u), buy = s.items.filter(i => i.st === "buy");
   return { groups: s.groups, items: s.items, total: buyTotal(s), nbuy: buy.length, unpriced: buy.filter(i => !(i.p > 0)).length };
 }
-const sline = i => `${i.name}${i.q > 1 ? ` ×${i.q}` : ""} — ${i.p > 0 ? `${fmtx(i.p)} บาท/${i.un}${i.q > 1 ? ` = ${fmtx(i.p * i.q)}` : ""}` : "ยังไม่ใส่ราคา"}`;
+const sline = i => `${i.name} ${i.q} ${i.un} — ${i.p > 0 ? `${fmtx(i.p)} บาท/${i.un}${i.q > 1 ? ` = ${fmtx(i.p * i.q)}` : ""}` : "ยังไม่ใส่ราคา"}`;
 function stockText(u) {
   const s = stk(u), buy = s.items.filter(i => i.st === "buy"), have = s.items.filter(i => i.st !== "buy"), np = buy.filter(i => !(i.p > 0)).length;
   const gname = id => (s.groups.find(g => g.id === id) || { name: "อื่นๆ" }).name.replace(/^ของใช้(ใน)?/, "");
-  const byg = s.groups.map(g => [g, have.filter(i => i.g === g.id)]).filter(([, l]) => l.length).map(([g, l]) => `${gname(g.id)}: ${l.map(i => i.name).join(", ")}`).join("\n");
+  const byg = s.groups.map(g => [g, have.filter(i => i.g === g.id)]).filter(([, l]) => l.length).map(([g, l]) => `${gname(g.id)}: ${l.map(i => i.name + (i.h > 0 ? ` ${i.h} ${i.un}` : "")).join(", ")}`).join("\n");
   return `🛒 ต้องซื้อ (${buy.length})\n` + (buy.length ? buy.map(i => "• " + sline(i)).join("\n") + `\nรวมประมาณ ${fmtx(buyTotal(s))} บาท` + (np ? ` (ยังไม่ใส่ราคา ${np} รายการ)` : "") : "ไม่มี")
-    + `\n\n✅ ยังมีอยู่ (${have.length})\n${byg || "ไม่มี"}\n\nพิมพ์: หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ / ลบของ ไข่`;
+    + `\n\n✅ ยังมีอยู่ (${have.length})\n${byg || "ไม่มี"}\n\nพิมพ์: หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ 3 / จำนวน ไข่ 3 / ลบของ ไข่`;
 }
 function sfind(s, q) {
   q = q.trim().toLowerCase(); const ex1 = s.items.filter(i => i.name.toLowerCase() === q); if (ex1.length === 1) return ex1[0];
@@ -169,13 +169,13 @@ function sfind(s, q) {
 function stockOp(u, b, now) {
   const s = stk(u), it = s.items.find(i => i.id === b.id);
   const nm = v => String(v || "").trim().slice(0, 30), pr = v => Math.min(1e6, Math.max(0, r2(+v || 0)));
-  const un = v => (v === "แพ็ค" || v === "แพค") ? "แพ็ค" : "ชิ้น", qy = v => Math.min(999, Math.max(1, Math.round(+v) || 1)), gp = v => s.groups.some(g => g.id === v) ? v : "oth";
+  const un = v => (v === "แพ็ค" || v === "แพค") ? "แพ็ค" : "ชิ้น", qy = v => Math.min(999, Math.max(1, Math.round(+v) || 1)), gp = v => s.groups.some(g => g.id === v) ? v : "oth", hq = v => Math.min(9999, Math.max(0, Math.round(+v) || 0));
   const dup = (name, self) => s.items.some(i => i !== self && i.name.toLowerCase() === name.toLowerCase());
   if (b.op === "sadd") {
     const name = nm(b.name); if (!name) return { err: "ต้องใส่ชื่อของ" };
     if (dup(name)) return { err: `มี "${name}" ในรายการแล้ว` };
     if (s.items.length >= 200) return { err: "รายการเต็ม (สูงสุด 200 รายการ)" };
-    s.items.push({ id: newId(), name, g: gp(b.g), st: b.st === "buy" ? "buy" : "have", p: pr(b.p), un: un(b.un), q: qy(b.q) });
+    s.items.push({ id: newId(), name, g: gp(b.g), st: b.st === "buy" ? "buy" : "have", p: pr(b.p), un: un(b.un), q: qy(b.q), h: hq(b.h) });
     return { ok: `เพิ่ม ${name} แล้ว` };
   }
   if (!it) return { err: "ไม่พบรายการนี้" };
@@ -185,9 +185,10 @@ function stockOp(u, b, now) {
     if (b.p !== undefined) it.p = pr(b.p);
     if (b.un !== undefined) it.un = un(b.un);
     if (b.q !== undefined) it.q = qy(b.q);
+    if (b.h !== undefined) it.h = hq(b.h);
     return { ok: "บันทึกแล้ว" };
   }
-  if (b.op === "sst") { it.st = b.st === "buy" ? "buy" : "have"; if (it.st === "buy" && b.q !== undefined) it.q = qy(b.q); return { ok: it.st === "buy" ? `${it.name}: ต้องซื้อ` : `${it.name}: ยังมีอยู่` }; }
+  if (b.op === "sst") { it.st = b.st === "buy" ? "buy" : "have"; if (it.st === "buy" && b.q !== undefined) it.q = qy(b.q); if (it.st === "buy" && b.out) it.h = 0; if (it.st === "have" && b.h !== undefined) it.h = hq(b.h); return { ok: it.st === "buy" ? `${it.name}: ต้องซื้อ ${it.q} ${it.un}` : `${it.name}: ยังมีอยู่${it.h > 0 ? ` ${it.h} ${it.un}` : ""}` }; }
   if (b.op === "sdel") { s.items = s.items.filter(i => i !== it); return { ok: `ลบ ${it.name} แล้ว` }; }
   if (b.op === "sbought") {
     const cost = r2(it.p * it.q); let rec = "";
@@ -195,7 +196,7 @@ function stockOp(u, b, now) {
       const { Y, M, D } = bkk(now), e = ex(u), r = addExp(e, key(Y, M, D), e.cats.some(c => c.id === "hh") ? "hh" : "", cost, it.name + (it.q > 1 ? ` ×${it.q}` : ""));
       if (!r.err) rec = ` และบันทึกเป็นค่าใช้จ่ายวันนี้ ${fmtx(cost)} บาทแล้ว`;
     }
-    it.st = "have"; it.q = 1; return { ok: `ซื้อ ${it.name} แล้ว${rec}` };
+    const bq = it.q; it.h = Math.min(9999, hq(it.h) + bq); it.st = "have"; it.q = 1; return { ok: `ซื้อ ${it.name} ${bq} ${it.un} แล้ว${rec} (มีอยู่ ${it.h} ${it.un})` };
   }
   return { err: "bad op" };
 }
@@ -204,11 +205,15 @@ function stockCmd(u, t, now) {
   const run = (b, f) => { const r = stockOp(u, b, now); if (!r.err) save(); return r.err || r.ok + (f === false ? "" : `\nต้องซื้อรวม ${s.items.filter(i => i.st === "buy").length} รายการ ประมาณ ${fmtx(buyTotal(s))} บาท`); };
   const nf = n => `ไม่พบ "${n}" ในรายการของใช้ (พิมพ์ ของใช้ เพื่อดูรายการ)`;
   if (/^(ของใช้|ต้องซื้อ|ของที่ต้องซื้อ|รายการซื้อ)$/.test(t)) return stockText(u);
-  if ((m = t.match(/^(?:ต้องซื้อ|หมด)\s+(.+?)(?:\s+(\d{1,3}))?$/))) {
-    const f = sfind(s, m[1]);
-    return f ? run({ op: "sst", id: f.id, st: "buy", q: m[2] }) : run({ op: "sadd", name: m[1], st: "buy", q: m[2] || 1 }) + "\n(ใส่ราคาได้ เช่น ราคา " + m[1] + " 25 ชิ้น)";
+  if ((m = t.match(/^(ต้องซื้อ|หมด)\s+(.+?)(?:\s+(\d{1,3}))?$/))) {
+    const f = sfind(s, m[2]);
+    return f ? run({ op: "sst", id: f.id, st: "buy", q: m[3], out: m[1] === "หมด" }) : run({ op: "sadd", name: m[2], st: "buy", q: m[3] || 1 }) + "\n(ใส่ราคาได้ เช่น ราคา " + m[2] + " 25 ชิ้น)";
   }
-  if ((m = t.match(/^ยังมี\s+(.+)$/))) { const f = sfind(s, m[1]); return f ? run({ op: "sst", id: f.id, st: "have" }) : nf(m[1]); }
+  if ((m = t.match(/^ยังมี\s+(.+?)(?:\s+(\d{1,4}))?$/))) { const f = sfind(s, m[1]); return f ? run({ op: "sst", id: f.id, st: "have", h: m[2] }) : nf(m[1]); }
+  if ((m = t.match(/^จำนวน\s+(.+?)\s+(\d{1,4})$/))) {
+    const f = sfind(s, m[1]); if (!f) return nf(m[1]); const buy = f.st === "buy", r = run({ op: "supd", id: f.id, [buy ? "q" : "h"]: m[2] }, false);
+    return r.startsWith("บันทึก") ? `ตั้งจำนวน${buy ? "ที่ต้องซื้อ" : "ที่มีอยู่"} ${f.name} เป็น ${buy ? f.q : f.h} ${f.un} แล้ว` : r;
+  }
   if ((m = t.match(/^ซื้อแล้ว\s+(.+)$/))) { const f = sfind(s, m[1]); return f ? run({ op: "sbought", id: f.id, rec: true }) : nf(m[1]); }
   if ((m = t.match(/^ราคา\s+(.+?)\s+(\d+(?:\.\d+)?)(?:\s*(ชิ้น|แพ็ค|แพค))?$/))) {
     const f = sfind(s, m[1]); if (!f) return nf(m[1]);
@@ -217,8 +222,8 @@ function stockCmd(u, t, now) {
   if ((m = t.match(/^เพิ่มของ\s+(.+)$/))) {
     let rest = m[1].trim(), g = "oth"; const gm = rest.match(/^(ห้องน้ำ|ครัว|อื่นๆ)\s+(.+)$/);
     if (gm) { g = { "ห้องน้ำ": "bath", "ครัว": "kit", "อื่นๆ": "oth" }[gm[1]]; rest = gm[2]; }
-    const pm = rest.match(/^(.+?)(?:\s+(\d+(?:\.\d+)?))?(?:\s*(ชิ้น|แพ็ค|แพค))?$/);
-    return run({ op: "sadd", name: pm[1], g, p: pm[2], un: pm[3], st: "buy" });
+    const pm = rest.match(/^(.+?)(?:\s+(\d+(?:\.\d+)?))?(?:\s*(ชิ้น|แพ็ค|แพค))?(?:\s+(\d{1,3}))?$/);
+    return run({ op: "sadd", name: pm[1], g, p: pm[2], un: pm[3], q: pm[4], st: "buy" });
   }
   if ((m = t.match(/^ลบของ\s+(.+)$/))) { const f = sfind(s, m[1]); return f ? run({ op: "sdel", id: f.id }, false) : nf(m[1]); }
   return null;
@@ -486,7 +491,7 @@ const HELP = `วิธีใช้
 • สรุป  หรือ  สรุป 9 — บอทจะถามว่าจะสรุป เวร หรือ ค่าใช้จ่าย (พิมพ์ สรุปเวร / สรุปจ่าย เพื่อข้ามคำถาม)
 • สรุปวันนี้ — สรุป 1 วัน (เวร + ค่าใช้จ่ายของวันนี้)
 • สรุปเดือนนี้ — สรุป 1 เดือน (เวร + ค่าใช้จ่าย + ยอดคงเหลือ/งบ)
-• ของใช้ — ดูรายการ ต้องซื้อ / ยังมีอยู่ (หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ / ลบของ ไข่)
+• ของใช้ — ดูรายการ ต้องซื้อ / ยังมีอยู่ (หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ 3 / จำนวน ไข่ 3 / ลบของ ไข่)
 • ตาราง — ดูเวรเดือนนี้\n• ปฏิทิน — ขอลิงก์ปฏิทิน (บอทจะถามว่าจะใช้ ปฏิทินเวร หรือ ปฏิทินค่าใช้จ่าย)\n• ลิงก์ใหม่ — เปลี่ยนลิงก์ปฏิทิน
 • ลบ 16 — ล้างเวรวันที่ 16
 • ตั้งค่า — ดูค่าเวร

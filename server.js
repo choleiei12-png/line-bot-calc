@@ -144,23 +144,27 @@ function expMonth(e, Y, M) {
   }
   return { days, by, menus, zero, total: r2(total), n };
 }
-// ===== ของใช้ในบ้าน: ต้องซื้อ / ยังมีอยู่ (ราคาต่อชิ้น หรือ ต่อแพ็ค) =====
+// ===== ของใช้ในบ้าน: ต้องซื้อ / ยังมีอยู่ (ราคาปกติ / ราคาโปร, ราคานี้ได้กี่ชิ้น, จำนวนที่มีเป็นชิ้น) =====
 const G0 = () => [["bath", "ของใช้ในห้องน้ำ"], ["kit", "ของใช้ในครัว"], ["oth", "ของใช้อื่นๆ"]].map(([id, name]) => ({ id, name }));
 const S0 = () => [["bath", "สบู่", "ชิ้น"], ["bath", "โฟมล้างหน้า", "ชิ้น"], ["bath", "ยาสีฟัน", "ชิ้น"], ["kit", "น้ำแพ็ค", "แพ็ค"], ["kit", "ข้าว", "ชิ้น"], ["kit", "มาม่า", "แพ็ค"], ["kit", "ไข่", "แพ็ค"]]
-  .map(([g, name, un]) => ({ id: newId(), name, g, st: "have", p: 0, un, q: 1, h: 0 }));
-const stk = u => { const e = ex(u); if (!e.stock) { e.stock = { groups: G0(), items: S0() }; save(); } e.stock.items.forEach(i => { if (i.h === undefined) i.h = 0; }); return e.stock; };
-const buyTotal = s => r2(s.items.filter(i => i.st === "buy").reduce((t, i) => t + i.p * i.q, 0));
+  .map(([g, name, un]) => ({ id: newId(), name, g, st: "have", p: 0, pc: 1, pr: 0, prc: 1, pm: "n", un, q: 1, h: 0 }));
+// p/pc = ราคาปกติ และราคานี้ได้กี่ชิ้น, pr/prc = ราคาโปร และได้กี่ชิ้น, pm = ราคาที่ใช้คิดยอด (n ปกติ / p โปร), q = จำนวนที่ต้องซื้อ (หน่วย un), h = จำนวนที่มีอยู่ (ชิ้น)
+const norm = i => { if (i.h === undefined) i.h = 0; if (i.pc === undefined) i.pc = 1; if (i.pr === undefined) { i.pr = 0; i.prc = 1; i.pm = "n"; } return i; };
+const stk = u => { const e = ex(u); if (!e.stock) { e.stock = { groups: G0(), items: S0() }; save(); } e.stock.items.forEach(norm); return e.stock; };
+const ep = i => (i.pm === "p" && i.pr > 0) ? { p: i.pr, c: i.prc || 1, promo: true } : { p: i.p, c: i.pc || 1, promo: false };
+const buyTotal = s => r2(s.items.filter(i => i.st === "buy").reduce((t, i) => t + ep(i).p * i.q, 0));
 function stockData(u) {
   const s = stk(u), buy = s.items.filter(i => i.st === "buy");
-  return { groups: s.groups, items: s.items, total: buyTotal(s), nbuy: buy.length, unpriced: buy.filter(i => !(i.p > 0)).length };
+  return { groups: s.groups, items: s.items, total: buyTotal(s), nbuy: buy.length, unpriced: buy.filter(i => !(ep(i).p > 0)).length };
 }
-const sline = i => `${i.name} ${i.q} ${i.un} — ${i.p > 0 ? `${fmtx(i.p)} บาท/${i.un}${i.q > 1 ? ` = ${fmtx(i.p * i.q)}` : ""}` : "ยังไม่ใส่ราคา"}`;
+const perPc = (p, c) => c > 1 ? ` (ได้ ${c} ชิ้น ≈${fmtx(p / c)}/ชิ้น)` : "";
+const sline = i => { const e = ep(i); return `${i.name} ${i.q} ${i.un} — ` + (e.p > 0 ? `${e.promo ? "โปร " : ""}${fmtx(e.p)} บาท/${i.un}${perPc(e.p, e.c)}${i.q > 1 ? ` = ${fmtx(e.p * i.q)}` : ""}` : "ยังไม่ใส่ราคา"); };
 function stockText(u) {
-  const s = stk(u), buy = s.items.filter(i => i.st === "buy"), have = s.items.filter(i => i.st !== "buy"), np = buy.filter(i => !(i.p > 0)).length;
+  const s = stk(u), buy = s.items.filter(i => i.st === "buy"), have = s.items.filter(i => i.st !== "buy"), np = buy.filter(i => !(ep(i).p > 0)).length;
   const gname = id => (s.groups.find(g => g.id === id) || { name: "อื่นๆ" }).name.replace(/^ของใช้(ใน)?/, "");
-  const byg = s.groups.map(g => [g, have.filter(i => i.g === g.id)]).filter(([, l]) => l.length).map(([g, l]) => `${gname(g.id)}: ${l.map(i => i.name + (i.h > 0 ? ` ${i.h} ${i.un}` : "")).join(", ")}`).join("\n");
+  const byg = s.groups.map(g => [g, have.filter(i => i.g === g.id)]).filter(([, l]) => l.length).map(([g, l]) => `${gname(g.id)}: ${l.map(i => i.name + (i.h > 0 ? ` ${i.h} ชิ้น` : "")).join(", ")}`).join("\n");
   return `🛒 ต้องซื้อ (${buy.length})\n` + (buy.length ? buy.map(i => "• " + sline(i)).join("\n") + `\nรวมประมาณ ${fmtx(buyTotal(s))} บาท` + (np ? ` (ยังไม่ใส่ราคา ${np} รายการ)` : "") : "ไม่มี")
-    + `\n\n✅ ยังมีอยู่ (${have.length})\n${byg || "ไม่มี"}\n\nพิมพ์: หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ 3 / จำนวน ไข่ 3 / ลบของ ไข่`;
+    + `\n\n✅ ยังมีอยู่ (${have.length})\n${byg || "ไม่มี"}\n\nพิมพ์: หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค 30 (30 = ได้กี่ชิ้น) / โปร ไข่ 100 แพ็ค 30 / ใช้ราคาโปร ไข่ / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ 12 / จำนวน ไข่ 3 / ลบของ ไข่`;
 }
 function sfind(s, q) {
   q = q.trim().toLowerCase(); const ex1 = s.items.filter(i => i.name.toLowerCase() === q); if (ex1.length === 1) return ex1[0];
@@ -168,35 +172,41 @@ function sfind(s, q) {
 }
 function stockOp(u, b, now) {
   const s = stk(u), it = s.items.find(i => i.id === b.id);
-  const nm = v => String(v || "").trim().slice(0, 30), pr = v => Math.min(1e6, Math.max(0, r2(+v || 0)));
+  const nm = v => String(v || "").trim().slice(0, 30), mny = v => Math.min(1e6, Math.max(0, r2(+v || 0))), pcs = v => Math.min(9999, Math.max(1, Math.round(+v) || 1));
   const un = v => (v === "แพ็ค" || v === "แพค") ? "แพ็ค" : "ชิ้น", qy = v => Math.min(999, Math.max(1, Math.round(+v) || 1)), gp = v => s.groups.some(g => g.id === v) ? v : "oth", hq = v => Math.min(9999, Math.max(0, Math.round(+v) || 0));
   const dup = (name, self) => s.items.some(i => i !== self && i.name.toLowerCase() === name.toLowerCase());
   if (b.op === "sadd") {
     const name = nm(b.name); if (!name) return { err: "ต้องใส่ชื่อของ" };
     if (dup(name)) return { err: `มี "${name}" ในรายการแล้ว` };
     if (s.items.length >= 200) return { err: "รายการเต็ม (สูงสุด 200 รายการ)" };
-    s.items.push({ id: newId(), name, g: gp(b.g), st: b.st === "buy" ? "buy" : "have", p: pr(b.p), un: un(b.un), q: qy(b.q), h: hq(b.h) });
+    const pr = mny(b.pr);
+    s.items.push({ id: newId(), name, g: gp(b.g), st: b.st === "buy" ? "buy" : "have", p: mny(b.p), pc: pcs(b.pc), pr, prc: pcs(b.prc), pm: pr > 0 && b.pm !== "n" ? "p" : "n", un: un(b.un), q: qy(b.q), h: hq(b.h) });
     return { ok: `เพิ่ม ${name} แล้ว` };
   }
   if (!it) return { err: "ไม่พบรายการนี้" };
   if (b.op === "supd") {
     if (b.name !== undefined) { const name = nm(b.name); if (!name) return { err: "ต้องใส่ชื่อของ" }; if (dup(name, it)) return { err: `มี "${name}" ในรายการแล้ว` }; it.name = name; }
     if (b.g !== undefined) it.g = gp(b.g);
-    if (b.p !== undefined) it.p = pr(b.p);
+    if (b.p !== undefined) it.p = mny(b.p);
+    if (b.pc !== undefined) it.pc = pcs(b.pc);
+    if (b.pr !== undefined) { const old = it.pr; it.pr = mny(b.pr); if (!(it.pr > 0)) it.pm = "n"; else if (!(old > 0)) it.pm = "p"; }
+    if (b.prc !== undefined) it.prc = pcs(b.prc);
+    if (b.pm !== undefined) it.pm = b.pm === "p" && it.pr > 0 ? "p" : "n";
     if (b.un !== undefined) it.un = un(b.un);
     if (b.q !== undefined) it.q = qy(b.q);
     if (b.h !== undefined) it.h = hq(b.h);
     return { ok: "บันทึกแล้ว" };
   }
-  if (b.op === "sst") { it.st = b.st === "buy" ? "buy" : "have"; if (it.st === "buy" && b.q !== undefined) it.q = qy(b.q); if (it.st === "buy" && b.out) it.h = 0; if (it.st === "have" && b.h !== undefined) it.h = hq(b.h); return { ok: it.st === "buy" ? `${it.name}: ต้องซื้อ ${it.q} ${it.un}` : `${it.name}: ยังมีอยู่${it.h > 0 ? ` ${it.h} ${it.un}` : ""}` }; }
+  if (b.op === "sst") { it.st = b.st === "buy" ? "buy" : "have"; if (it.st === "buy" && b.q !== undefined) it.q = qy(b.q); if (it.st === "buy" && b.out) it.h = 0; if (it.st === "have" && b.h !== undefined) it.h = hq(b.h); return { ok: it.st === "buy" ? `${it.name}: ต้องซื้อ ${it.q} ${it.un}` : `${it.name}: ยังมีอยู่${it.h > 0 ? ` ${it.h} ชิ้น` : ""}` }; }
   if (b.op === "sdel") { s.items = s.items.filter(i => i !== it); return { ok: `ลบ ${it.name} แล้ว` }; }
   if (b.op === "sbought") {
-    const cost = r2(it.p * it.q); let rec = "";
+    const e0 = ep(it), bq = it.q, cost = r2(e0.p * bq), got = e0.c * bq; let rec = "";
     if (b.rec && cost > 0) {
-      const { Y, M, D } = bkk(now), e = ex(u), r = addExp(e, key(Y, M, D), e.cats.some(c => c.id === "hh") ? "hh" : "", cost, it.name + (it.q > 1 ? ` ×${it.q}` : ""));
+      const { Y, M, D } = bkk(now), e = ex(u), r = addExp(e, key(Y, M, D), e.cats.some(c => c.id === "hh") ? "hh" : "", cost, it.name + (bq > 1 ? ` ×${bq}` : "") + (e0.promo ? " (โปร)" : ""));
       if (!r.err) rec = ` และบันทึกเป็นค่าใช้จ่ายวันนี้ ${fmtx(cost)} บาทแล้ว`;
     }
-    const bq = it.q; it.h = Math.min(9999, hq(it.h) + bq); it.st = "have"; it.q = 1; return { ok: `ซื้อ ${it.name} ${bq} ${it.un} แล้ว${rec} (มีอยู่ ${it.h} ${it.un})` };
+    it.h = Math.min(9999, hq(it.h) + got); it.st = "have"; it.q = 1;
+    return { ok: `ซื้อ ${it.name} ${bq} ${it.un}${e0.c > 1 ? ` (ได้ ${got} ชิ้น)` : ""} แล้ว${rec} (มีอยู่ ${it.h} ชิ้น)` };
   }
   return { err: "bad op" };
 }
@@ -204,6 +214,7 @@ function stockCmd(u, t, now) {
   const s = stk(u); let m;
   const run = (b, f) => { const r = stockOp(u, b, now); if (!r.err) save(); return r.err || r.ok + (f === false ? "" : `\nต้องซื้อรวม ${s.items.filter(i => i.st === "buy").length} รายการ ประมาณ ${fmtx(buyTotal(s))} บาท`); };
   const nf = n => `ไม่พบ "${n}" ในรายการของใช้ (พิมพ์ ของใช้ เพื่อดูรายการ)`;
+  const cmp = f => f.p > 0 && f.pr > 0 ? `\nเทียบต่อชิ้น: ปกติ ${fmtx(f.p / (f.pc || 1))} · โปร ${fmtx(f.pr / (f.prc || 1))} บาท (${f.pr / (f.prc || 1) < f.p / (f.pc || 1) ? "โปรถูกกว่า" : "ปกติถูกกว่า หรือเท่ากัน"})` : "";
   if (/^(ของใช้|ต้องซื้อ|ของที่ต้องซื้อ|รายการซื้อ)$/.test(t)) return stockText(u);
   if ((m = t.match(/^(ต้องซื้อ|หมด)\s+(.+?)(?:\s+(\d{1,3}))?$/))) {
     const f = sfind(s, m[2]);
@@ -212,12 +223,22 @@ function stockCmd(u, t, now) {
   if ((m = t.match(/^ยังมี\s+(.+?)(?:\s+(\d{1,4}))?$/))) { const f = sfind(s, m[1]); return f ? run({ op: "sst", id: f.id, st: "have", h: m[2] }) : nf(m[1]); }
   if ((m = t.match(/^จำนวน\s+(.+?)\s+(\d{1,4})$/))) {
     const f = sfind(s, m[1]); if (!f) return nf(m[1]); const buy = f.st === "buy", r = run({ op: "supd", id: f.id, [buy ? "q" : "h"]: m[2] }, false);
-    return r.startsWith("บันทึก") ? `ตั้งจำนวน${buy ? "ที่ต้องซื้อ" : "ที่มีอยู่"} ${f.name} เป็น ${buy ? f.q : f.h} ${f.un} แล้ว` : r;
+    return r.startsWith("บันทึก") ? `ตั้งจำนวน${buy ? "ที่ต้องซื้อ" : "ที่มีอยู่"} ${f.name} เป็น ${buy ? f.q + " " + f.un : f.h + " ชิ้น"} แล้ว` : r;
   }
   if ((m = t.match(/^ซื้อแล้ว\s+(.+)$/))) { const f = sfind(s, m[1]); return f ? run({ op: "sbought", id: f.id, rec: true }) : nf(m[1]); }
-  if ((m = t.match(/^ราคา\s+(.+?)\s+(\d+(?:\.\d+)?)(?:\s*(ชิ้น|แพ็ค|แพค))?$/))) {
+  if ((m = t.match(/^ราคา\s+(.+?)\s+(\d+(?:\.\d+)?)(?:\s*(ชิ้น|แพ็ค|แพค))?(?:\s+(\d{1,4}))?$/))) {
     const f = sfind(s, m[1]); if (!f) return nf(m[1]);
-    const r = run({ op: "supd", id: f.id, p: m[2], un: m[3] }, false); return r.startsWith("บันทึก") ? `ตั้งราคา ${f.name} ${fmtx(f.p)} บาท/${f.un} แล้ว` : r;
+    const r = run({ op: "supd", id: f.id, p: m[2], un: m[3], pc: m[4] }, false); return r.startsWith("บันทึก") ? `ตั้งราคาปกติ ${f.name} ${fmtx(f.p)} บาท/${f.un}${perPc(f.p, f.pc)} แล้ว` + cmp(f) : r;
+  }
+  if ((m = t.match(/^(?:โปรโมชั่น|โปร)\s+(.+?)\s+(\d+(?:\.\d+)?)(?:\s*(ชิ้น|แพ็ค|แพค))?(?:\s+(\d{1,4}))?$/))) {
+    const f = sfind(s, m[1]); if (!f) return nf(m[1]);
+    const r = run({ op: "supd", id: f.id, pr: m[2], un: m[3], prc: m[4] }, false);
+    return r.startsWith("บันทึก") ? (f.pr > 0 ? `ตั้งราคาโปร ${f.name} ${fmtx(f.pr)} บาท/${f.un}${perPc(f.pr, f.prc)} แล้ว (ใช้ราคาโปรคิดยอด)` + cmp(f) : `ยกเลิกราคาโปรของ ${f.name} แล้ว (กลับไปใช้ราคาปกติ)`) : r;
+  }
+  if ((m = t.match(/^ใช้ราคา(ปกติ|โปรโมชั่น|โปร)\s+(.+)$/))) {
+    const f = sfind(s, m[2]); if (!f) return nf(m[2]); const promo = m[1] !== "ปกติ";
+    if (promo && !(f.pr > 0)) return `${f.name} ยังไม่ได้ตั้งราคาโปร (พิมพ์ เช่น โปร ${f.name} 100)`;
+    return run({ op: "supd", id: f.id, pm: promo ? "p" : "n" }) .replace(/^บันทึกแล้ว/, `${f.name}: ใช้ราคา${promo ? "โปร" : "ปกติ"}คิดยอด`);
   }
   if ((m = t.match(/^เพิ่มของ\s+(.+)$/))) {
     let rest = m[1].trim(), g = "oth"; const gm = rest.match(/^(ห้องน้ำ|ครัว|อื่นๆ)\s+(.+)$/);
@@ -491,7 +512,7 @@ const HELP = `วิธีใช้
 • สรุป  หรือ  สรุป 9 — บอทจะถามว่าจะสรุป เวร หรือ ค่าใช้จ่าย (พิมพ์ สรุปเวร / สรุปจ่าย เพื่อข้ามคำถาม)
 • สรุปวันนี้ — สรุป 1 วัน (เวร + ค่าใช้จ่ายของวันนี้)
 • สรุปเดือนนี้ — สรุป 1 เดือน (เวร + ค่าใช้จ่าย + ยอดคงเหลือ/งบ)
-• ของใช้ — ดูรายการ ต้องซื้อ / ยังมีอยู่ (หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ 3 / จำนวน ไข่ 3 / ลบของ ไข่)
+• ของใช้ — ดูรายการ ต้องซื้อ / ยังมีอยู่ (หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค 30 [30=ได้กี่ชิ้น] / โปร ไข่ 100 แพ็ค 30 / ใช้ราคาโปร ไข่ / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ 12 / จำนวน ไข่ 3 / ลบของ ไข่)
 • ตาราง — ดูเวรเดือนนี้\n• ปฏิทิน — ขอลิงก์ปฏิทิน (บอทจะถามว่าจะใช้ ปฏิทินเวร หรือ ปฏิทินค่าใช้จ่าย)\n• ลิงก์ใหม่ — เปลี่ยนลิงก์ปฏิทิน
 • ลบ 16 — ล้างเวรวันที่ 16
 • ตั้งค่า — ดูค่าเวร

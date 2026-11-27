@@ -132,7 +132,7 @@ function addExp(e, k, cat, amt, note) {
   amt = Math.min(1e8, r2(+amt)); if (!(amt > 0)) return { err: "ต้องใส่จำนวนเงินมากกว่า 0" };
   const list = e.items[k] || (e.items[k] = []);
   if (list.length >= 100) return { err: "วันนี้มีรายการเยอะเกินไป (สูงสุด 100)" };
-  list.push({ i: newId(), c: cat, a: amt, n: String(note || "").trim().slice(0, 40) });
+  list.push({ i: newId(), c: cat, a: amt, n: String(note || "").trim().slice(0, 120) });
   if (e.zero) delete e.zero[k];
   return { ok: true };
 }
@@ -147,15 +147,24 @@ function expMonth(e, Y, M) {
 // ===== ของใช้ในบ้าน: ต้องซื้อ / ยังมีอยู่ (ราคาปกติ / ราคาโปร, ราคานี้ได้กี่ชิ้น, จำนวนที่มีเป็นชิ้น) =====
 const G0 = () => [["bath", "ของใช้ในห้องน้ำ"], ["kit", "ของใช้ในครัว"], ["oth", "ของใช้อื่นๆ"]].map(([id, name]) => ({ id, name }));
 const S0 = () => [["bath", "สบู่", "ชิ้น"], ["bath", "โฟมล้างหน้า", "ชิ้น"], ["bath", "ยาสีฟัน", "ชิ้น"], ["kit", "น้ำแพ็ค", "แพ็ค"], ["kit", "ข้าว", "ชิ้น"], ["kit", "มาม่า", "แพ็ค"], ["kit", "ไข่", "แพ็ค"]]
-  .map(([g, name, un]) => ({ id: newId(), name, g, st: "have", p: 0, pc: 1, pr: 0, prc: 1, pm: "n", un, q: 1, h: 0 }));
+  .map(([g, name, un]) => ({ id: newId(), name, g, st: "have", p: 0, pc: 1, pr: 0, prc: 1, pm: "n", un, q: 1, h: null, hk: 1 }));
 // p/pc = ราคาปกติ และราคานี้ได้กี่ชิ้น, pr/prc = ราคาโปร และได้กี่ชิ้น, pm = ราคาที่ใช้คิดยอด (n ปกติ / p โปร), q = จำนวนที่ต้องซื้อ (หน่วย un), h = จำนวนที่มีอยู่ (ชิ้น)
-const norm = i => { if (i.h === undefined) i.h = 0; if (i.pc === undefined) i.pc = 1; if (i.pr === undefined) { i.pr = 0; i.prc = 1; i.pm = "n"; } return i; };
+const norm = i => { if (i.h === undefined) i.h = 0; if (i.hk === undefined) { i.hk = 1; if (i.h === 0 && i.st !== "buy") i.h = null; } if (i.pc === undefined) i.pc = 1; if (i.pr === undefined) { i.pr = 0; i.prc = 1; i.pm = "n"; } return i; };
 const stk = u => { const e = ex(u); if (!e.stock) { e.stock = { groups: G0(), items: S0() }; save(); } e.stock.items.forEach(norm); return e.stock; };
 const ep = i => (i.pm === "p" && i.pr > 0) ? { p: i.pr, c: i.prc || 1, promo: true } : { p: i.p, c: i.pc || 1, promo: false };
 const buyTotal = s => r2(s.items.filter(i => i.st === "buy").reduce((t, i) => t + ep(i).p * i.q, 0));
 function stockData(u) {
   const s = stk(u), buy = s.items.filter(i => i.st === "buy");
   return { groups: s.groups, items: s.items, total: buyTotal(s), nbuy: buy.length, unpriced: buy.filter(i => !(ep(i).p > 0)).length };
+}
+const lvOf = h => h == null ? "u" : h <= 1 ? "r" : h === 2 ? "y" : "g";   // 0-1 แดง ควรซื้อ / 2 เหลือง ใกล้ซื้อ / 3+ เขียว พอใช้
+const LVE = { r: "🔴 ควรซื้อ", y: "🟡 ใกล้ถึงเวลาซื้อ", g: "🟢 พอใช้", u: "⚪ ยังไม่ระบุจำนวน" };
+function boardText(u) {
+  const s = stk(u), by = { r: [], y: [], g: [], u: [] }; s.items.forEach(i => by[lvOf(i.h)].push(i));
+  const it = i => `${i.name}${i.h == null ? "" : " " + i.h}${i.st === "buy" ? " 🛒" : ""}`;
+  const sec = (k, e, t) => by[k].length ? `${e} ${t} (${by[k].length}): ${by[k].sort((a, b) => (a.h ?? 0) - (b.h ?? 0)).map(it).join(", ")}` : null;
+  return "📦 ของใช้ในบ้าน — เหลืออะไรบ้าง\n" + [sec("r", "🔴", "ควรซื้อ เหลือ 0–1"), sec("y", "🟡", "ใกล้ถึงเวลาซื้อ เหลือ 2"), sec("g", "🟢", "พอใช้ เหลือ 3 ขึ้นไป"), sec("u", "⚪", "ยังไม่ระบุจำนวน")].filter(Boolean).join("\n")
+    + "\n\n(🛒 = อยู่ในรายการซื้อแล้ว) ลดของ: ใช้ ไข่ 2 · เติมของ: เติม ไข่ 6 · ตั้งจำนวน: ยังมี ไข่ 12";
 }
 const perPc = (p, c) => c > 1 ? ` (ได้ ${c} ชิ้น ≈${fmtx(p / c)}/ชิ้น)` : "";
 const sline = i => { const e = ep(i); return `${i.name} ${i.q} ${i.un} — ` + (e.p > 0 ? `${e.promo ? "โปร " : ""}${fmtx(e.p)} บาท/${i.un}${perPc(e.p, e.c)}${i.q > 1 ? ` = ${fmtx(e.p * i.q)}` : ""}` : "ยังไม่ใส่ราคา"); };
@@ -180,7 +189,7 @@ function stockOp(u, b, now) {
     if (dup(name)) return { err: `มี "${name}" ในรายการแล้ว` };
     if (s.items.length >= 200) return { err: "รายการเต็ม (สูงสุด 200 รายการ)" };
     const pr = mny(b.pr);
-    s.items.push({ id: newId(), name, g: gp(b.g), st: b.st === "buy" ? "buy" : "have", p: mny(b.p), pc: pcs(b.pc), pr, prc: pcs(b.prc), pm: pr > 0 && b.pm !== "n" ? "p" : "n", un: un(b.un), q: qy(b.q), h: hq(b.h) });
+    s.items.push({ id: newId(), name, g: gp(b.g), st: b.st === "buy" ? "buy" : "have", p: mny(b.p), pc: pcs(b.pc), pr, prc: pcs(b.prc), pm: pr > 0 && b.pm !== "n" ? "p" : "n", un: un(b.un), q: qy(b.q), h: (b.h === undefined || b.h === "") ? (b.st === "buy" ? 0 : null) : hq(b.h), hk: 1 });
     return { ok: `เพิ่ม ${name} แล้ว` };
   }
   if (!it) return { err: "ไม่พบรายการนี้" };
@@ -194,10 +203,15 @@ function stockOp(u, b, now) {
     if (b.pm !== undefined) it.pm = b.pm === "p" && it.pr > 0 ? "p" : "n";
     if (b.un !== undefined) it.un = un(b.un);
     if (b.q !== undefined) it.q = qy(b.q);
-    if (b.h !== undefined) it.h = hq(b.h);
+    if (b.h !== undefined) it.h = (b.h === "" || b.h === null) ? null : hq(b.h);
     return { ok: "บันทึกแล้ว" };
   }
   if (b.op === "sst") { it.st = b.st === "buy" ? "buy" : "have"; if (it.st === "buy" && b.q !== undefined) it.q = qy(b.q); if (it.st === "buy" && b.out) it.h = 0; if (it.st === "have" && b.h !== undefined) it.h = hq(b.h); return { ok: it.st === "buy" ? `${it.name}: ต้องซื้อ ${it.q} ${it.un}` : `${it.name}: ยังมีอยู่${it.h > 0 ? ` ${it.h} ชิ้น` : ""}` }; }
+  if (b.op === "sadj") {
+    const d = Math.round(+b.d) || 0;
+    if (b.f === "q") { it.q = qy(it.q + d); return { ok: `${it.name}: ต้องซื้อ ${it.q} ${it.un}` }; }
+    it.h = Math.min(9999, Math.max(0, hq(it.h) + d)); return { ok: `${it.name}: เหลือ ${it.h} ชิ้น ${LVE[lvOf(it.h)]}` };
+  }
   if (b.op === "sdel") { s.items = s.items.filter(i => i !== it); return { ok: `ลบ ${it.name} แล้ว` }; }
   if (b.op === "sbought") {
     const e0 = ep(it), bq = it.q, cost = r2(e0.p * bq), got = e0.c * bq; let rec = "";
@@ -216,6 +230,13 @@ function stockCmd(u, t, now) {
   const nf = n => `ไม่พบ "${n}" ในรายการของใช้ (พิมพ์ ของใช้ เพื่อดูรายการ)`;
   const cmp = f => f.p > 0 && f.pr > 0 ? `\nเทียบต่อชิ้น: ปกติ ${fmtx(f.p / (f.pc || 1))} · โปร ${fmtx(f.pr / (f.prc || 1))} บาท (${f.pr / (f.prc || 1) < f.p / (f.pc || 1) ? "โปรถูกกว่า" : "ปกติถูกกว่า หรือเท่ากัน"})` : "";
   if (/^(ของใช้|ต้องซื้อ|ของที่ต้องซื้อ|รายการซื้อ)$/.test(t)) return stockText(u);
+  if (/^(ของเหลือ|เช็คของ|ตารางของใช้)$/.test(t)) return boardText(u);
+  if ((m = t.match(/^(ใช้|เติม)\s+(.+?)(?:\s+(\d{1,4}))?$/))) {
+    const f = sfind(s, m[2]); if (!f) return nf(m[2]);
+    if (f.h == null) return `${f.name} ยังไม่ได้ระบุจำนวนที่มี ตั้งก่อนด้วย: ยังมี ${f.name} 12`;
+    const n = +m[3] || 1, old = f.h, r = run({ op: "sadj", id: f.id, f: "h", d: m[1] === "ใช้" ? -n : n }, false);
+    return r.err ? r : `${m[1] === "ใช้" ? "ใช้" : "เติม"} ${f.name} ${n} ชิ้น (${old} → ${f.h})\n${LVE[lvOf(f.h)]}` + (lvOf(f.h) === "r" || lvOf(f.h) === "y" ? `\nใส่ในรายการซื้อ: หมด ${f.name}` : "");
+  }
   if ((m = t.match(/^(ต้องซื้อ|หมด)\s+(.+?)(?:\s+(\d{1,3}))?$/))) {
     const f = sfind(s, m[2]);
     return f ? run({ op: "sst", id: f.id, st: "buy", q: m[3], out: m[1] === "หมด" }) : run({ op: "sadd", name: m[2], st: "buy", q: m[3] || 1 }) + "\n(ใส่ราคาได้ เช่น ราคา " + m[2] + " 25 ชิ้น)";
@@ -307,7 +328,7 @@ function expAdd(u, text, now) {
     if (!(r2(+m[3].replace(/,/g, "")) > 0)) { bad.push(`${line} (ต้องใส่จำนวนเงินมากกว่า 0)`); return; }
     let c = findCat(e, m[2]);
     if (!c) { const r = addCat(e, m[2]); if (r.err) { bad.push(`${line} (${r.err})`); return; } c = r.ok; made.push(c.name); }
-    const amt = +m[3].replace(/,/g, ""), note = (m[4] || "").trim().slice(0, 40), r = addExp(e, k, c.id, amt, note);
+    const amt = +m[3].replace(/,/g, ""), note = (m[4] || "").trim().slice(0, 120), r = addExp(e, k, c.id, amt, note);
     if (r.err) { bad.push(`${line} (${r.err})`); return; }
     ok.push(`${fd(k)} ${c.name}${note ? " " + note : ""} ${fmtx(amt)}`);
   });
@@ -511,7 +532,9 @@ const HELP = `วิธีใช้
 • ลงเวร: พิมพ์ 16 เช้า / 17 บ่าย ดึก / 18 OT เช้า / 19 OFF (หลายบรรทัดได้)
 • สรุป  หรือ  สรุป 9 — บอทจะถามว่าจะสรุป เวร หรือ ค่าใช้จ่าย (พิมพ์ สรุปเวร / สรุปจ่าย เพื่อข้ามคำถาม)
 • สรุปวันนี้ — สรุป 1 วัน (เวร + ค่าใช้จ่ายของวันนี้)
+• สรุปรายวัน — รายงานค่าใช้จ่ายเป็นรายการ + รวมยอด พร้อมส่งต่อ (สรุปรายวัน 19 / 19-21 / 19/11)
 • สรุปเดือนนี้ — สรุป 1 เดือน (เวร + ค่าใช้จ่าย + ยอดคงเหลือ/งบ)
+• ของเหลือ — ดูของที่เหลือ แยก 🔴 ควรซื้อ (0–1) 🟡 ใกล้ซื้อ (2) 🟢 พอใช้ (3+) / ใช้ ไข่ 2 ลดจำนวน / เติม ไข่ 6 เพิ่มจำนวน
 • ของใช้ — ดูรายการ ต้องซื้อ / ยังมีอยู่ (หมด ไข่ 2 / ซื้อแล้ว ไข่ / ราคา ไข่ 120 แพ็ค 30 [30=ได้กี่ชิ้น] / โปร ไข่ 100 แพ็ค 30 / ใช้ราคาโปร ไข่ / เพิ่มของ ครัว น้ำตาล 30 / ยังมี ไข่ 12 / จำนวน ไข่ 3 / ลบของ ไข่)
 • ตาราง — ดูเวรเดือนนี้\n• ปฏิทิน — ขอลิงก์ปฏิทิน (บอทจะถามว่าจะใช้ ปฏิทินเวร หรือ ปฏิทินค่าใช้จ่าย)\n• ลิงก์ใหม่ — เปลี่ยนลิงก์ปฏิทิน
 • ลบ 16 — ล้างเวรวันที่ 16
@@ -545,12 +568,32 @@ const HELP = `วิธีใช้
 • ฝากเวร 20 ให้ ฝน — ยกเวรให้
 • คำขอ / รับ 3 / ปฏิเสธ 3 / ยกเลิกคำขอ 3`;
 
+// ===== รายงานรายวัน: รายการ "- ชื่อ จำนวน บาท" + (รายละเอียด) + รวมยอด =====
+const shortHead = k => { const [y, mo, d] = k.split("-"); return `${+d} ${MN[+mo - 1]} ${String((+y + 543) % 100).padStart(2, "0")}`; };
+const splitNote = n => { const s = String(n || "").trim(), m = s.match(/^(.*?)\s*[(（]([^()（）]+)[)）]\s*$/); return m ? { t: m[1].trim(), d: m[2].trim() } : { t: s, d: "" }; };
+const repTitle = (e, x) => { const t = splitNote(x.n).t, c = catOf(e, x.c).name, g = !x.c || x.c === "o" || /อื่น|ไม่ระบุ/.test(c); return g ? (t || c) : (t ? c + " " + t : c); };
+function dayReport(e, k) {
+  const l = e.items[k] || [];
+  if (!l.length) return `${shortHead(k)}\n\n` + (e.zero && e.zero[k] ? "ไม่มีค่าใช้จ่าย" : "ยังไม่มีรายการ");
+  const tot = r2(l.reduce((s, x) => s + x.a, 0));
+  return `${shortHead(k)}\n\n` + l.map(x => { const d = splitNote(x.n).d; return `- ${repTitle(e, x)} ${fmtx(x.a)} บาท` + (d ? `\n(${d})` : ""); }).join("\n")
+    + `\n\nรวม ${l.length > 1 ? l.map(x => String(+x.a)).join("+") + "=" : ""}${fmtx(tot)} บาท`;
+}
+function reportCmd(u, t, now) {
+  const m = t.match(/^(?:สรุปรายวัน|รายงานวัน)(?:\s+(.+))?$/); if (!m) return null;
+  const e = ex(u), { Y, M, D } = bkk(now), keys = m[1] ? parseDayArgs(m[1].trim(), Y, M) : [key(Y, M, D)];
+  if (!keys) return BADDAY;
+  const has = k => (e.items[k] || []).length, shown = keys.length === 1 ? keys : keys.filter(k => has(k) || (e.zero && e.zero[k]));
+  if (!shown.length) return "ไม่มีรายการในช่วงนี้ พิมพ์ เช่น จ่าย อื่นๆ 300 เบี้ยเลี้ยง 6 คน";
+  const wi = keys.filter(has), grand = r2(wi.reduce((s, k) => s + e.items[k].reduce((a, x) => a + x.a, 0), 0));
+  return shown.map(k => dayReport(e, k)).join("\n\n") + (wi.length > 1 ? `\n\nรวมทุกวัน ${fmtx(grand)} บาท (${wi.length} วัน)` : "");
+}
 function daySummary(u, now) {
   const { Y, M, D } = bkk(now), k = key(Y, M, D), e = ex(u), sh = shiftsOn(u, k);
   const off = (u.days[k] || []).some(i => (u.types.find(x => x.id === i) || {}).kind === "x");
-  const pay = sh.reduce((s, t) => s + (+t.rate || 0), 0), l = e.items[k] || [], tot = l.reduce((s, x) => s + x.a, 0), mt = expMonth(e, Y, M).total;
-  return `สรุปวันนี้ ${fd(k)} ${Y + 543}\nเวร: ${sh.length ? label(u, k) + ` (${fmt(pay)} บาท)` : off ? "วันหยุด (OFF)" : "ไม่มีเวร"}\nค่าใช้จ่าย: `
-    + (l.length ? `${fmtx(tot)} บาท (${l.length} รายการ)\n` + l.map((x, i) => ` ${i + 1}. ${catOf(e, x.c).name}${x.n ? " " + x.n : ""} ${fmtx(x.a)}`).join("\n") : e.zero && e.zero[k] ? "0 บาท (ไม่มีค่าใช้จ่าย)" : "ยังไม่มีรายการ")
+  const pay = sh.reduce((s, t) => s + (+t.rate || 0), 0), mt = expMonth(e, Y, M).total;
+  const body = (e.items[k] || []).length ? dayReport(e, k).split("\n").slice(2).join("\n") : "ค่าใช้จ่าย: " + (e.zero && e.zero[k] ? "ไม่มีค่าใช้จ่าย" : "ยังไม่มีรายการ");
+  return `สรุปวันนี้ ${shortHead(k)}\nเวร: ${sh.length ? label(u, k) + ` (${fmt(pay)} บาท)` : off ? "วันหยุด (OFF)" : "ไม่มีเวร"}\n\n${body}`
     + (e.budget ? `\n\nทั้งเดือนใช้ไป ${fmtx(mt)} บาท\n` + budgetTxt(e.budget, mt) : "");
 }
 function monthSummary(u, Y, M) {
@@ -571,6 +614,7 @@ function handle(id, text, now = new Date(), base = "") {
       }
     }
   }
+  const rp = reportCmd(u, t, now); if (rp) return rp;
   const sk = stockCmd(u, t, now); if (sk) return sk;
   if (t === "สรุปวันนี้") return daySummary(u, now);
   if (t === "สรุปเดือนนี้") return monthSummary(u, Y, M);
@@ -718,7 +762,7 @@ function api(req, res, t, act, url) {
           if (b.on && !set) return send(400, { error: "วันที่เลือกมีรายการค่าใช้จ่ายอยู่แล้ว" });
         } else if (b.op === "catdel") x.cats = x.cats.filter(i => i.id !== b.id);
         else if (b.op === "budget") x.budget = Math.min(1e8, Math.max(0, r2(+b.amt || 0)));
-        else if (/^s(add|upd|st|del|bought)$/.test(b.op)) { const r = stockOp(u, b, new Date()); if (r.err) return send(400, { error: r.err }); }
+        else if (/^s(add|upd|st|del|bought|adj)$/.test(b.op)) { const r = stockOp(u, b, new Date()); if (r.err) return send(400, { error: r.err }); }
         else return send(400, { error: "bad op" });
         save(); return send(200, expData(u, Y, M));
       }
